@@ -1,0 +1,38 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Avatars
+    match /avatars/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Question submissions images
+    match /submissions/{userId}/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Admin questions images & products
+    match /questions/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+    
+    match /products/{fileName} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+
+    // Default open read for public assets
+    match /{allPaths=**} {
+      allow read: if true;
+      allow write: if isAuthenticated();
+    }
+  }
+}
