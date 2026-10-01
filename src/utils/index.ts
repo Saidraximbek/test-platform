@@ -1,4 +1,4 @@
-﻿import { clsx, type ClassValue } from "clsx";
+import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -7,6 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatCoins(amount: number): string {
   return new Intl.NumberFormat("uz-UZ").format(amount);
+}
+
+export function formatNumber(num: number): string {
+  return new Intl.NumberFormat("uz-UZ").format(num || 0);
 }
 
 export function formatDate(timestamp: any): string {

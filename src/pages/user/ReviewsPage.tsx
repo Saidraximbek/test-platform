@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Star, MessageSquare, Plus, User } from "lucide-react";
@@ -117,6 +117,8 @@ export const ReviewsPage: React.FC = () => {
                       <img
                         src={rev.userPhotoURL}
                         alt={rev.userDisplayName}
+                        loading="lazy"
+                        decoding="async"
                         className="w-9 h-9 rounded-full object-cover"
                       />
                     ) : (

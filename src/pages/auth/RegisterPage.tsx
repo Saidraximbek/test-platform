@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,10 +13,24 @@ import { z } from "zod";
 type RegisterFormData = z.infer<typeof RegisterSchema>;
 
 export const RegisterPage: React.FC = () => {
-  const { register: authRegister } = useAuth();
+  const { register: authRegister, firebaseUser, user, isAdmin, isTeacher, isDirector, loading: authLoading } = useAuth();
   const { success, error: toastError } = useToast();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && firebaseUser) {
+      if (isDirector || user?.role === "director") {
+        navigate("/director", { replace: true });
+      } else if (isTeacher || user?.role === "teacher") {
+        navigate("/teacher", { replace: true });
+      } else if (isAdmin || user?.role === "admin") {
+        navigate("/admin", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
+    }
+  }, [firebaseUser, user, isAdmin, isTeacher, isDirector, authLoading, navigate]);
 
   const {
     register,

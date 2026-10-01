@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Coins,
   ArrowUpRight,
@@ -150,7 +150,7 @@ export const ProgressPage: React.FC = () => {
                   </div>
                   <div>
                     <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                      Daraja #{prog.levelId.substring(0, 8)}
+                      Daraja #{prog.levelId ? prog.levelId.substring(0, 8) : "N/A"}
                     </h4>
                     <p className="text-[11px] text-slate-500">
                       Natija: <strong className="text-slate-700 dark:text-slate-300">{prog.bestScore}%</strong> | Urinishlar: {prog.attempts}

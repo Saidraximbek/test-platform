@@ -1,4 +1,4 @@
-﻿import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import {
   doc,
   getDoc,
@@ -10,6 +10,7 @@ import {
   getDocs,
   serverTimestamp,
   increment,
+  limit,
 } from "firebase/firestore";
 import { db, functions, auth } from "../lib/firebase";
 import {
@@ -168,11 +169,14 @@ export const testService = {
       const questionsReview: QuestionReviewItem[] = [];
       let correctCount = 0;
 
-      for (const qId of session.questionIds) {
-        const qSnap = await getDoc(doc(db, "questions", qId));
+      const questionDocs = await Promise.all(
+        session.questionIds.map((qId) => getDoc(doc(db, "questions", qId)))
+      );
+
+      questionDocs.forEach((qSnap) => {
         if (qSnap.exists()) {
           const qData = qSnap.data() as Question;
-          const userAns = (answers[qId] || "").toUpperCase();
+          const userAns = (answers[qData.questionId] || "").toUpperCase();
           const isCorrect = userAns === qData.correctOptionId?.toUpperCase();
           if (isCorrect) {
             correctCount++;
@@ -182,14 +186,14 @@ export const testService = {
             text: qData.text,
             imageUrl: qData.imageUrl || null,
             options: qData.options,
-            selectedOptionId: answers[qId] || null,
+            selectedOptionId: answers[qData.questionId] || null,
             correctOptionId: qData.correctOptionId || "A",
             isCorrect,
             explanation: qData.explanation || "",
             difficulty: qData.difficulty,
           });
         }
-      }
+      });
 
       const totalQuestions = session.questionIds.length || 1;
       const score = Math.round((correctCount / totalQuestions) * 100);
@@ -280,18 +284,35 @@ export const testService = {
   },
 
   async getUserSessions(userId: string, limitCount = 10): Promise<TestSession[]> {
-    const q = query(
-      collection(db, "test_sessions"),
-      where("userId", "==", userId)
-    );
-    const snap = await getDocs(q);
-    const list = snap.docs.map((d) => d.data() as TestSession);
-    return list
-      .sort((a, b) => {
-        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
-        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
-        return timeB - timeA;
-      })
-      .slice(0, limitCount);
+    try {
+      const q = query(
+        collection(db, "test_sessions"),
+        where("userId", "==", userId),
+        limit(limitCount * 2)
+      );
+      const snap = await getDocs(q);
+      const list = snap.docs.map((d) => d.data() as TestSession);
+      return list
+        .sort((a, b) => {
+          const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+          const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+          return timeB - timeA;
+        })
+        .slice(0, limitCount);
+    } catch {
+      const q = query(
+        collection(db, "test_sessions"),
+        where("userId", "==", userId)
+      );
+      const snap = await getDocs(q);
+      const list = snap.docs.map((d) => d.data() as TestSession);
+      return list
+        .sort((a, b) => {
+          const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
+          const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
+          return timeB - timeA;
+        })
+        .slice(0, limitCount);
+    }
   },
 };

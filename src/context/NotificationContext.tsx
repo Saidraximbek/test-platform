@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from "react";
 import { useAuth } from "./AuthContext";
 import { notificationService } from "../services/notificationService";
 import { NotificationItem } from "../types";
@@ -34,31 +34,34 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return () => unsubscribe();
   }, [user?.uid]);
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const unreadCount = useMemo(() => notifications.filter((n) => !n.isRead).length, [notifications]);
 
-  const markAsRead = async (notificationId: string) => {
+  const markAsRead = useCallback(async (notificationId: string) => {
     await notificationService.markAsRead(notificationId);
     setNotifications((prev) =>
       prev.map((n) => (n.notificationId === notificationId ? { ...n, isRead: true } : n))
     );
-  };
+  }, []);
 
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     if (!user?.uid) return;
     await notificationService.markAllAsRead(user.uid);
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-  };
+  }, [user?.uid]);
+
+  const contextValue = useMemo<NotificationContextValue>(
+    () => ({
+      notifications,
+      unreadCount,
+      loading,
+      markAsRead,
+      markAllAsRead,
+    }),
+    [notifications, unreadCount, loading, markAsRead, markAllAsRead]
+  );
 
   return (
-    <NotificationContext.Provider
-      value={{
-        notifications,
-        unreadCount,
-        loading,
-        markAsRead,
-        markAllAsRead,
-      }}
-    >
+    <NotificationContext.Provider value={contextValue}>
       {children}
     </NotificationContext.Provider>
   );

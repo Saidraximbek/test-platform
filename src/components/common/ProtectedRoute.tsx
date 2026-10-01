@@ -1,10 +1,10 @@
-﻿import React from "react";
+import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { Spinner } from "./Spinner";
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { firebaseUser, user, loading, isBlocked } = useAuth();
+  const { firebaseUser, user, isAdmin, isTeacher, isDirector, loading, isBlocked } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -35,11 +35,28 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
     );
   }
 
+  // STRICT ROLE ISOLATION:
+  // Director only sees Director portal
+  if (isDirector || user?.role === "director") {
+    return <Navigate to="/director" replace />;
+  }
+
+  // Teacher only sees Teacher portal
+  if (isTeacher || user?.role === "teacher") {
+    return <Navigate to="/teacher" replace />;
+  }
+
+  // Admin only sees Admin portal
+  if (isAdmin || user?.role === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // Only student / learner reaches here
   return <>{children}</>;
 };
 
 export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { firebaseUser, isAdmin, loading } = useAuth();
+  const { firebaseUser, isAdmin, isDirector, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -50,7 +67,57 @@ export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }
     );
   }
 
-  if (!firebaseUser || !isAdmin) {
+  if (!firebaseUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (!isAdmin && !isDirector) {
+    return <Navigate to="/dashboard" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+export const DirectorRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { firebaseUser, isDirector, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Spinner size="lg" className="text-brand-600" />
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (!isDirector) {
+    return <Navigate to="/dashboard" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
+
+export const TeacherRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { firebaseUser, isTeacher, isAdmin, isDirector, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Spinner size="lg" className="text-brand-600" />
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (!isTeacher && !isAdmin && !isDirector) {
     return <Navigate to="/dashboard" state={{ from: location }} replace />;
   }
 

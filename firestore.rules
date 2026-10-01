@@ -6,12 +6,30 @@ service cloud.firestore {
       return request.auth != null;
     }
     
+    function isDirector() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'director' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'director')
+      );
+    }
+
     function isAdmin() {
       return isAuthenticated() && (
+        isDirector() ||
         request.auth.token.admin == true || 
         request.auth.token.role == 'admin' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && (
+        isAdmin() ||
+        request.auth.token.role == 'teacher' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher')
       );
     }
 
@@ -125,6 +143,70 @@ service cloud.firestore {
     match /system_settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // 17. LMS Groups
+    match /groups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // 18. LMS Lessons
+    match /lessons/{lessonId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated();
+      allow delete: if isAdmin() || isTeacher() || (isAuthenticated() && resource.data.teacherId == request.auth.uid);
+    }
+
+    // 19. LMS Homeworks
+    match /homeworks/{homeworkId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // 20. LMS Homework Submissions
+    match /homework_submissions/{submissionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // 21. LMS Attendance
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isTeacher();
+    }
+
+    // 22. LMS Teacher Questions
+    match /teacher_questions/{questionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // 23. ERP Payments
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 24. ERP Expenses
+    match /expenses/{expenseId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 25. ERP Teacher Salaries
+    match /teacher_salaries/{salaryId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // 26. LMS Admissions
+    match /admissions/{admissionId} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

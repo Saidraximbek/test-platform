@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Clock,
@@ -19,6 +19,52 @@ import { Spinner } from "../../components/common/Spinner";
 import { Card } from "../../components/common/Card";
 import { sound } from "../../utils/soundEffects";
 
+interface TestCountdownTimerProps {
+  expiresAt: string;
+  onTimeUp: () => void;
+}
+
+const TestCountdownTimer: React.FC<TestCountdownTimerProps> = React.memo(({ expiresAt, onTimeUp }) => {
+  const [timeLeftMs, setTimeLeftMs] = useState<number>(() =>
+    Math.max(0, new Date(expiresAt).getTime() - Date.now())
+  );
+
+  useEffect(() => {
+    const expiresMs = new Date(expiresAt).getTime();
+    const interval = setInterval(() => {
+      const remaining = expiresMs - Date.now();
+      if (remaining <= 0) {
+        setTimeLeftMs(0);
+        clearInterval(interval);
+        onTimeUp();
+      } else {
+        setTimeLeftMs(remaining);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [expiresAt, onTimeUp]);
+
+  const minutes = Math.floor(timeLeftMs / 60000);
+  const seconds = Math.floor((timeLeftMs % 60000) / 1000);
+  const isUrgent = minutes < 5;
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl border font-mono font-bold text-xs sm:text-sm shrink-0 ${
+        isUrgent
+          ? "bg-rose-500/10 border-rose-500/30 text-rose-600 animate-pulse"
+          : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
+      }`}
+    >
+      <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+      <span>
+        {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
+      </span>
+    </div>
+  );
+});
+
 export const TestPage: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const location = useLocation();
@@ -30,8 +76,6 @@ export const TestPage: React.FC = () => {
   );
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [timeLeftMs, setTimeLeftMs] = useState<number>(0);
-  const [isTimeUp, setIsTimeUp] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(!sessionData);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [isAbandoning, setIsAbandoning] = useState<boolean>(false);
@@ -94,42 +138,40 @@ export const TestPage: React.FC = () => {
     fetchSession();
   }, [sessionId, sessionData, navigate, toastError]);
 
-  // Sync answers with Firestore
+  // Debounced answers sync to Firestore
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingAnswersRef = useRef<Record<string, string> | null>(null);
+
+  const flushAnswersToFirestore = useCallback(() => {
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+      syncTimeoutRef.current = null;
+    }
+    if (pendingAnswersRef.current && sessionId) {
+      testService.updateAnswers(sessionId, pendingAnswersRef.current).catch(console.error);
+      pendingAnswersRef.current = null;
+    }
+  }, [sessionId]);
+
   const syncAnswersToFirestore = useCallback(
     (newAnswers: Record<string, string>) => {
       if (!sessionId) return;
-      testService.updateAnswers(sessionId, newAnswers).catch(console.error);
+      pendingAnswersRef.current = newAnswers;
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+      syncTimeoutRef.current = setTimeout(() => {
+        flushAnswersToFirestore();
+      }, 700);
     },
-    [sessionId]
+    [sessionId, flushAnswersToFirestore]
   );
 
-  // Countdown timer logic
   useEffect(() => {
-    if (!sessionData?.expiresAt) return;
-
-    const expiresMs = new Date(sessionData.expiresAt).getTime();
-
-    const interval = setInterval(() => {
-      const remaining = expiresMs - Date.now();
-      if (remaining <= 0) {
-        setTimeLeftMs(0);
-        setIsTimeUp(true);
-        clearInterval(interval);
-      } else {
-        setTimeLeftMs(remaining);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [sessionData?.expiresAt]);
-
-  // Auto-submit when time is up
-  useEffect(() => {
-    if (isTimeUp && !isSubmitting && sessionId) {
-      warning("Vaqt tugadi! Test avtomatik tarzda yakunlanmoqda...");
-      handleSubmitTest();
-    }
-  }, [isTimeUp]);
+    return () => {
+      flushAnswersToFirestore();
+    };
+  }, [flushAnswersToFirestore]);
 
   const handleSelectOption = (questionId: string, optionId: string) => {
     sound.playOptionSelect();
@@ -140,6 +182,7 @@ export const TestPage: React.FC = () => {
 
   const handleSubmitTest = async () => {
     if (!sessionId) return;
+    flushAnswersToFirestore();
     setIsSubmitting(true);
     try {
       const result = await testService.submitTest(sessionId, answers);
@@ -152,8 +195,16 @@ export const TestPage: React.FC = () => {
     }
   };
 
+  const handleTimeUp = useCallback(() => {
+    if (!isSubmitting && sessionId) {
+      warning("Vaqt tugadi! Test avtomatik tarzda yakunlanmoqda...");
+      handleSubmitTest();
+    }
+  }, [isSubmitting, sessionId]);
+
   const handleAbandonTest = async () => {
     if (!sessionId) return;
+    flushAnswersToFirestore();
     setIsAbandoning(true);
     try {
       const res = await testService.abandonTest(sessionId);
@@ -181,10 +232,6 @@ export const TestPage: React.FC = () => {
   const totalQuestions = questions.length;
   const answeredCount = Object.keys(answers).length;
 
-  const minutes = Math.floor(timeLeftMs / 60000);
-  const seconds = Math.floor((timeLeftMs % 60000) / 1000);
-  const isUrgent = minutes < 5;
-
   return (
     <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 pb-20">
       {/* Top Test Navigation Bar (Mobile Ergonomic) */}
@@ -207,19 +254,10 @@ export const TestPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Timer */}
-          <div
-            className={`flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 rounded-xl border font-mono font-bold text-xs sm:text-sm shrink-0 ${
-              isUrgent
-                ? "bg-rose-500/10 border-rose-500/30 text-rose-600 animate-pulse"
-                : "bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200"
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span>
-              {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
-            </span>
-          </div>
+          {/* Isolated Timer Component */}
+          {sessionData?.expiresAt && (
+            <TestCountdownTimer expiresAt={sessionData.expiresAt} onTimeUp={handleTimeUp} />
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-100 dark:border-slate-800">
@@ -264,6 +302,8 @@ export const TestPage: React.FC = () => {
               <img
                 src={currentQuestion.imageUrl}
                 alt="Savol rasmi"
+                loading="lazy"
+                decoding="async"
                 className="object-contain max-h-72 w-auto"
               />
             </div>

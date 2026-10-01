@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Package, CheckCircle2, Search, Check, XCircle } from "lucide-react";
 import { shopService } from "../../services/shopService";
 import { useToast } from "../../context/ToastContext";
@@ -156,7 +156,7 @@ export const AdminOrdersPage: React.FC = () => {
               <tbody className="divide-y divide-slate-800">
                 {filteredOrders.map((ord) => {
                   const pickupCode =
-                    ord.deliveryInfo?.trackingCode || `TL-${ord.orderId.substring(6, 11)}`;
+                    ord.deliveryInfo?.trackingCode || (ord.orderId ? `TL-${ord.orderId.substring(6, 11)}` : "TL-ORDER");
                   const isDelivered = ord.status === "delivered";
 
                   return (

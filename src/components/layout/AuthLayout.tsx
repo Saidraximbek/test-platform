@@ -1,5 +1,6 @@
-﻿import React from "react";
+import React from "react";
 import { Outlet, Link } from "react-router-dom";
+import { FargoniyLogo } from "../common/FargoniyLogo";
 
 export const AuthLayout: React.FC = () => {
   return (
@@ -9,13 +10,8 @@ export const AuthLayout: React.FC = () => {
       <div className="absolute bottom-10 right-10 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center px-4">
-        <Link to="/" className="inline-flex items-center gap-2.5 mb-6 group">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-600 via-sky-500 to-amber-400 flex items-center justify-center text-white shadow-xl shadow-brand-500/30 group-hover:scale-105 transition-transform">
-            <span className="font-extrabold text-2xl">T</span>
-          </div>
-          <span className="font-black text-2xl tracking-tight text-white">
-            TILLO PLATFORMA
-          </span>
+        <Link to="/" className="inline-flex items-center justify-center mb-6 group">
+          <FargoniyLogo size="xl" subtitle="LMS & Test Platformasi" theme="dark" />
         </Link>
       </div>
 

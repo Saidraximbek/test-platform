@@ -1,4 +1,4 @@
-﻿import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import {
   collection,
   doc,
@@ -15,8 +15,17 @@ import {
 import { db, functions, auth } from "../lib/firebase";
 import { Order, OrderDeliveryInfo, Product, ProductCategory, UserProfile } from "../types";
 
+let productsMemCache: { data: Product[]; time: number } | null = null;
+
 export const shopService = {
   async getProducts(category?: ProductCategory, onlyActive = true): Promise<Product[]> {
+    if (onlyActive && productsMemCache && Date.now() - productsMemCache.time < 60000) {
+      if (category) {
+        return productsMemCache.data.filter((p) => p.category === category);
+      }
+      return productsMemCache.data;
+    }
+
     const productsRef = collection(db, "products");
     const snap = await getDocs(productsRef);
     let list = snap.docs.map((d) => d.data() as Product);
@@ -28,11 +37,17 @@ export const shopService = {
       list = list.filter((p) => p.category === category);
     }
 
-    return list.sort((a, b) => {
+    const sorted = list.sort((a, b) => {
       const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : new Date(a.createdAt || 0).getTime();
       const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : new Date(b.createdAt || 0).getTime();
       return timeB - timeA;
     });
+
+    if (!category && onlyActive) {
+      productsMemCache = { data: sorted, time: Date.now() };
+    }
+
+    return sorted;
   },
 
   async getProductById(productId: string): Promise<Product | null> {

@@ -1,7 +1,7 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 export const LoginSchema = z.object({
-  email: z.string().email("Yaroqli email manzilini kiriting"),
+  email: z.string().min(3, "Login yoki email manzilini kiriting"),
   password: z.string().min(6, "Parol kamida 6 ta belgidan iborat bo'lishi kerak"),
 });
 

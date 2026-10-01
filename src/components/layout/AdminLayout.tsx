@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -13,19 +13,25 @@ import {
   Trophy,
   Settings,
   ShieldAlert,
-  ArrowLeft,
   Menu,
   X,
-  Sparkles,
-  Activity,
   ShieldCheck,
-  ExternalLink,
+  GraduationCap,
+  UserCheck,
+  CreditCard,
+  Crown,
+  LogOut,
+  Briefcase,
+  UserPlus,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { sound } from "../../utils/soundEffects";
+import { FargoniyLogo } from "../common/FargoniyLogo";
 
 export const AdminLayout: React.FC = () => {
   const location = useLocation();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, isDirector, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const menuSections = [
@@ -34,6 +40,16 @@ export const AdminLayout: React.FC = () => {
       items: [
         { name: "Ko'rsatkichlar Paneli", href: "/admin", icon: LayoutDashboard },
         { name: "Foydalanuvchilar", href: "/admin/users", icon: Users },
+      ],
+    },
+    {
+      label: "LMS VA O'QUV JARAYONI",
+      items: [
+        { name: "Qabul Bo'limi (Lidlar)", href: "/admin/admissions", icon: UserPlus, badge: "Yangi" },
+        { name: "O'qituvchilar Boshqaruvi", href: "/admin/teachers", icon: Briefcase },
+        { name: "Guruhlar Boshqaruvi", href: "/admin/groups", icon: GraduationCap },
+        { name: "O'quvchilar & Guruhlar", href: "/admin/students", icon: UserCheck },
+        { name: "O'quv To'lovlari & Kassa", href: "/admin/payments", icon: CreditCard },
       ],
     },
     {
@@ -63,11 +79,25 @@ export const AdminLayout: React.FC = () => {
     },
   ];
 
+  // Mobile Bottom Navigation Bar (Primary admin tasks on phone)
+  const mobileNavItems = [
+    { name: "Asosiy", href: "/admin", icon: LayoutDashboard },
+    { name: "Qabul", href: "/admin/admissions", icon: UserPlus },
+    { name: "Guruhlar", href: "/admin/groups", icon: GraduationCap },
+    { name: "O'quvchilar", href: "/admin/students", icon: UserCheck },
+    { name: "To'lovlar", href: "/admin/payments", icon: CreditCard },
+  ];
+
   const isActive = (path: string) =>
     path === "/admin" ? location.pathname === "/admin" : location.pathname.startsWith(path);
 
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
   return (
-    <div className="dark min-h-screen flex bg-[#090D16] text-slate-100 font-sans selection:bg-brand-500 selection:text-white">
+    <div className="dark min-h-screen flex flex-col bg-[#090D16] text-slate-100 font-sans selection:bg-brand-500 selection:text-white">
       {/* Mobile Sidebar Backdrop */}
       {sidebarOpen && (
         <div
@@ -76,59 +106,53 @@ export const AdminLayout: React.FC = () => {
         />
       )}
 
-      {/* Modern Sidebar */}
-      <aside
-        className={`fixed lg:sticky top-0 h-screen w-72 bg-[#0E1322]/95 backdrop-blur-xl border-r border-slate-800/80 flex flex-col z-50 transition-all duration-300 shadow-2xl ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        }`}
-      >
-        {/* Brand Header */}
-        <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
-          <Link to="/admin" className="flex items-center gap-3 group">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-500 to-sky-400 flex items-center justify-center text-white shadow-lg shadow-brand-500/25 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="font-black text-base tracking-tight text-white">TILLO</h2>
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-brand-500/20 text-brand-400 border border-brand-500/30">
-                  PRO ADMIN
+      <div className="flex-1 flex">
+        {/* Modern Sidebar */}
+        <aside
+          className={`fixed lg:sticky top-0 h-screen w-80 max-w-[85vw] bg-[#0E1322]/95 backdrop-blur-xl border-r border-slate-800/80 flex flex-col z-50 transition-all duration-300 shadow-2xl ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          }`}
+        >
+          {/* Brand Header */}
+          <div className="p-4 sm:p-5 border-b border-slate-800/80 flex items-center justify-between">
+            <Link to="/admin" className="flex items-center gap-2 group">
+              <FargoniyLogo size="sm" subtitle="Admin Panel" theme="dark" />
+            </Link>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/60 transition-colors"
+              title="Yopish"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Quick link to Director if user is Director */}
+          {isDirector && (
+            <div className="px-4 pt-4 pb-2">
+              <Link
+                to="/director"
+                className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all group"
+              >
+                <span className="flex items-center gap-2">
+                  <Crown className="w-4 h-4 text-amber-400" />
+                  Direktor Paneliga o'tish
                 </span>
-              </div>
-              <p className="text-[11px] text-slate-400 font-medium -mt-0.5">Boshqaruv Markazi</p>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">
+                  ERP
+                </span>
+              </Link>
             </div>
-          </Link>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/60"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+          )}
 
-        {/* Back to student platform quick link */}
-        <div className="px-4 pt-4 pb-2">
-          <Link
-            to="/dashboard"
-            className="flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold text-slate-300 bg-slate-800/40 hover:bg-brand-600/20 hover:text-white border border-slate-700/50 hover:border-brand-500/30 transition-all group"
-          >
-            <span className="flex items-center gap-2">
-              <ArrowLeft className="w-4 h-4 text-brand-400 group-hover:-translate-x-1 transition-transform" />
-              Foydalanuvchi qismi
-            </span>
-            <ExternalLink className="w-3.5 h-3.5 text-slate-500 group-hover:text-brand-400" />
-          </Link>
-        </div>
-
-        {/* Categorized Navigation items */}
-        <nav className="flex-1 overflow-y-auto px-4 py-2 space-y-5 scrollbar-thin scrollbar-thumb-slate-800">
-          {menuSections.map((section, sIdx) => (
-            <div key={sIdx} className="space-y-1.5">
-              <h3 className="px-3 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
-                {section.label}
-              </h3>
-              <div className="space-y-1">
-                {section.items.map((item) => {
+          {/* Navigation Items */}
+          <nav className="flex-1 overflow-y-auto px-4 py-3 space-y-6 scrollbar-thin scrollbar-thumb-slate-800">
+            {menuSections.map((sec, idx) => (
+              <div key={idx} className="space-y-1">
+                <h3 className="px-3 text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-2">
+                  {sec.label}
+                </h3>
+                {sec.items.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.href);
                   return (
@@ -150,83 +174,131 @@ export const AdminLayout: React.FC = () => {
                         />
                         <span>{item.name}</span>
                       </div>
-                      {active && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {item.badge && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            {item.badge}
+                          </span>
+                        )}
+                        {active && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                      </div>
                     </Link>
                   );
                 })}
               </div>
-            </div>
-          ))}
-        </nav>
+            ))}
+          </nav>
 
-        {/* Administrator Profile Card */}
-        <div className="p-4 border-t border-slate-800/80 bg-slate-950/40">
-          <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40">
-            {user?.photoURL ? (
-              <img
-                src={user.photoURL}
-                alt={user.displayName}
-                className="w-9 h-9 rounded-full object-cover border border-brand-500/40"
-              />
-            ) : (
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-600 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-md">
-                {user?.displayName?.charAt(0) || "A"}
+          {/* Admin Profile & Logout */}
+          <div className="p-4 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
+            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-md">
+                A
               </div>
-            )}
-            <div className="overflow-hidden flex-1">
-              <p className="text-xs font-bold truncate text-white">{user?.displayName || "Admin"}</p>
-              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-semibold mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                <span>Faol Administrator</span>
+              <div className="overflow-hidden flex-1">
+                <p className="text-xs font-bold truncate text-white">{user?.displayName || "Admin"}</p>
+                <p className="text-[10px] text-brand-400 font-semibold">Tizim Administratori</p>
               </div>
             </div>
-          </div>
-        </div>
-      </aside>
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Header */}
-        <header className="sticky top-0 z-30 bg-[#0E1322]/80 backdrop-blur-xl border-b border-slate-800/80 h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
             <button
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800"
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 transition-all"
             >
-              <Menu className="w-5 h-5" />
+              <LogOut className="w-3.5 h-3.5" /> Chiqish
             </button>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-brand-400" />
-              <h1 className="text-sm sm:text-base font-extrabold text-white tracking-tight">
-                Tillo Admin Console
-              </h1>
-            </div>
           </div>
+        </aside>
 
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Tizim barqaror ishlamoqda</span>
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Header */}
+          <header className="sticky top-0 z-30 bg-[#0E1322]/90 backdrop-blur-xl border-b border-slate-800/80 h-14 sm:h-16 flex items-center justify-between px-3 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden flex items-center gap-1.5 px-2.5 py-1.5 text-slate-300 hover:text-white rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 transition-colors shadow-sm"
+                title="Barcha bo'limlar menyusi"
+              >
+                <Menu className="w-4 h-4 text-brand-400" />
+                <span className="text-xs font-bold">Menyu</span>
+              </button>
+              <div className="flex items-center gap-2">
+                <FargoniyLogo size={28} showText={false} />
+                <h1 className="text-xs sm:text-sm md:text-base font-extrabold text-white tracking-tight truncate">
+                  Administrator Paneli
+                </h1>
+              </div>
             </div>
 
-            <div className="text-right hidden md:block">
-              <span className="text-[11px] text-slate-400 block">Sana</span>
-              <span className="text-xs font-bold text-slate-200">
-                {new Date().toLocaleDateString("uz-UZ", { weekday: "short", day: "numeric", month: "long" })}
-              </span>
-            </div>
-          </div>
-        </header>
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Bugun</span>
+                <span className="text-xs font-bold text-slate-200">
+                  {new Date().toLocaleDateString("uz-UZ", { weekday: "short", day: "numeric", month: "long" })}
+                </span>
+              </div>
 
-        {/* Page Content Container */}
-        <main className="p-4 sm:p-6 lg:p-8 flex-1 overflow-x-hidden">
-          <div className="max-w-7xl mx-auto">
-            <Outlet />
-          </div>
-        </main>
+              <button
+                onClick={handleLogout}
+                className="lg:hidden p-2 text-rose-400 hover:text-rose-300 rounded-xl hover:bg-rose-500/10"
+                title="Chiqish"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </header>
+
+          <main className="p-3 sm:p-6 lg:p-8 flex-1 overflow-x-hidden pb-24 lg:pb-8">
+            <div className="max-w-7xl mx-auto">
+              <Outlet />
+            </div>
+          </main>
+        </div>
       </div>
+
+      {/* Admin Mobile Bottom Navigation Bar */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0E1322]/95 backdrop-blur-xl border-t border-slate-800/80 px-1 py-1.5 shadow-2xl flex items-center justify-around">
+        {mobileNavItems.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.href);
+          return (
+            <Link
+              key={item.href}
+              to={item.href}
+              onClick={() => sound.playClick()}
+              className={`flex flex-col items-center justify-center py-1 px-2.5 rounded-xl transition-all ${
+                active
+                  ? "text-brand-400 font-bold scale-105"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <div className="relative">
+                <Icon className={`w-5 h-5 ${active ? "stroke-[2.5]" : "stroke-[1.8]"}`} />
+                {active && (
+                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-brand-400" />
+                )}
+              </div>
+              <span className="text-[10px] mt-0.5 tracking-tight font-medium">{item.name}</span>
+            </Link>
+          );
+        })}
+
+        {/* 6th Mobile Bottom Nav button: Open Drawer for all other admin items */}
+        <button
+          onClick={() => {
+            setSidebarOpen(true);
+            sound.playClick();
+          }}
+          className="flex flex-col items-center justify-center py-1 px-2.5 rounded-xl text-amber-400 hover:text-amber-300 transition-all active:scale-95"
+          title="Barcha bo'limlar menyusini ochish"
+        >
+          <Menu className="w-5 h-5 stroke-[2.2]" />
+          <span className="text-[10px] mt-0.5 tracking-tight font-black">Menyu</span>
+        </button>
+      </nav>
     </div>
   );
 };
+
+export default AdminLayout;

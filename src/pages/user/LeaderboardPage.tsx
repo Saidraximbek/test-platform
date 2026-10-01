@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Trophy, Medal, Crown, Sparkles, User, BookOpen } from "lucide-react";
 import { leaderboardService } from "../../services/leaderboardService";
 import { subjectService } from "../../services/subjectService";
@@ -110,7 +110,7 @@ export const LeaderboardPage: React.FC = () => {
                   <Crown className="w-7 h-7 text-amber-500 absolute -top-7 left-1/2 -translate-x-1/2 animate-bounce" />
                   <div className="w-18 h-18 sm:w-20 sm:h-20 rounded-full bg-amber-100 dark:bg-amber-950 flex items-center justify-center text-2xl font-black border-2 border-amber-400 shadow-md overflow-hidden">
                     {top1.photoURL ? (
-                      <img src={top1.photoURL} alt={top1.displayName} className="w-full h-full object-cover" />
+                      <img src={top1.photoURL} alt={top1.displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     ) : (
                       top1.displayName?.charAt(0) || "1"
                     )}
@@ -137,7 +137,7 @@ export const LeaderboardPage: React.FC = () => {
                 <div className="relative mb-2 sm:mb-3">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-lg font-bold border-2 border-slate-400 overflow-hidden">
                     {top2.photoURL ? (
-                      <img src={top2.photoURL} alt={top2.displayName} className="w-full h-full object-cover" />
+                      <img src={top2.photoURL} alt={top2.displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     ) : (
                       top2.displayName?.charAt(0) || "2"
                     )}
@@ -164,7 +164,7 @@ export const LeaderboardPage: React.FC = () => {
                 <div className="relative mb-2 sm:mb-3">
                   <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-amber-900/20 text-amber-700 flex items-center justify-center text-lg font-bold border-2 border-amber-700 overflow-hidden">
                     {top3.photoURL ? (
-                      <img src={top3.photoURL} alt={top3.displayName} className="w-full h-full object-cover" />
+                      <img src={top3.photoURL} alt={top3.displayName} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                     ) : (
                       top3.displayName?.charAt(0) || "3"
                     )}
@@ -231,6 +231,8 @@ export const LeaderboardPage: React.FC = () => {
                         <img
                           src={entry.photoURL}
                           alt={entry.displayName}
+                          loading="lazy"
+                          decoding="async"
                           className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover shrink-0"
                         />
                       ) : (

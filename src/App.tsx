@@ -1,54 +1,131 @@
-﻿import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "./components/layout/AppLayout";
 import { AdminLayout } from "./components/layout/AdminLayout";
+import { TeacherLayout } from "./components/layout/TeacherLayout";
+import { DirectorLayout } from "./components/layout/DirectorLayout";
 import { AuthLayout } from "./components/layout/AuthLayout";
-import { ProtectedRoute, AdminRoute } from "./components/common/ProtectedRoute";
+import {
+  ProtectedRoute,
+  AdminRoute,
+  TeacherRoute,
+  DirectorRoute,
+} from "./components/common/ProtectedRoute";
+import { useAuth } from "./context/AuthContext";
+import { Spinner } from "./components/common/Spinner";
 
 // Auth Pages
-import { LoginPage } from "./pages/auth/LoginPage";
-import { RegisterPage } from "./pages/auth/RegisterPage";
+const LoginPage = lazy(() => import("./pages/auth/LoginPage").then((m) => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import("./pages/auth/RegisterPage").then((m) => ({ default: m.RegisterPage })));
 
-// User Pages
-import { DashboardPage } from "./pages/user/DashboardPage";
-import { ProfilePage } from "./pages/user/ProfilePage";
-import { SubjectsPage } from "./pages/user/SubjectsPage";
-import { LevelsPage, SubjectDetailPage } from "./pages/user/LevelsPage";
-import { TestPage } from "./pages/user/TestPage";
-import { TestResultPage } from "./pages/user/TestResultPage";
-import { ProgressPage } from "./pages/user/ProgressPage";
-import { LeaderboardPage } from "./pages/user/LeaderboardPage";
-import { ShopPage } from "./pages/user/ShopPage";
-import { ProductDetailPage } from "./pages/user/ProductDetailPage";
-import { OrdersPage, OrderDetailPage } from "./pages/user/OrdersPage";
-import { SubmitQuestionPage } from "./pages/user/SubmitQuestionPage";
-import { ReviewsPage } from "./pages/user/ReviewsPage";
-import { NotificationsPage } from "./pages/user/NotificationsPage";
+// User & Student Pages
+const DashboardPage = lazy(() => import("./pages/user/DashboardPage").then((m) => ({ default: m.DashboardPage })));
+const ProfilePage = lazy(() => import("./pages/user/ProfilePage").then((m) => ({ default: m.ProfilePage })));
+const SubjectsPage = lazy(() => import("./pages/user/SubjectsPage").then((m) => ({ default: m.SubjectsPage })));
+const LevelsPage = lazy(() => import("./pages/user/LevelsPage").then((m) => ({ default: m.LevelsPage })));
+const SubjectDetailPage = lazy(() => import("./pages/user/LevelsPage").then((m) => ({ default: m.SubjectDetailPage })));
+const TestPage = lazy(() => import("./pages/user/TestPage").then((m) => ({ default: m.TestPage })));
+const TestResultPage = lazy(() => import("./pages/user/TestResultPage").then((m) => ({ default: m.TestResultPage })));
+const ProgressPage = lazy(() => import("./pages/user/ProgressPage").then((m) => ({ default: m.ProgressPage })));
+const LeaderboardPage = lazy(() => import("./pages/user/LeaderboardPage").then((m) => ({ default: m.LeaderboardPage })));
+const ShopPage = lazy(() => import("./pages/user/ShopPage").then((m) => ({ default: m.ShopPage })));
+const ProductDetailPage = lazy(() => import("./pages/user/ProductDetailPage").then((m) => ({ default: m.ProductDetailPage })));
+const OrdersPage = lazy(() => import("./pages/user/OrdersPage").then((m) => ({ default: m.OrdersPage })));
+const OrderDetailPage = lazy(() => import("./pages/user/OrdersPage").then((m) => ({ default: m.OrderDetailPage })));
+const SubmitQuestionPage = lazy(() => import("./pages/user/SubmitQuestionPage").then((m) => ({ default: m.SubmitQuestionPage })));
+const ReviewsPage = lazy(() => import("./pages/user/ReviewsPage").then((m) => ({ default: m.ReviewsPage })));
+const NotificationsPage = lazy(() => import("./pages/user/NotificationsPage").then((m) => ({ default: m.NotificationsPage })));
+
+// Student LMS Pages
+const StudentLessonsPage = lazy(() => import("./pages/user/StudentLessonsPage").then((m) => ({ default: m.StudentLessonsPage })));
+const StudentLessonDetailPage = lazy(() => import("./pages/user/StudentLessonDetailPage").then((m) => ({ default: m.StudentLessonDetailPage })));
+const StudentHomeworkPage = lazy(() => import("./pages/user/StudentHomeworkPage").then((m) => ({ default: m.StudentHomeworkPage })));
+const StudentQuestionsPage = lazy(() => import("./pages/user/StudentQuestionsPage").then((m) => ({ default: m.StudentQuestionsPage })));
 
 // Admin Pages
-import { AdminDashboardPage } from "./pages/admin/AdminDashboardPage";
-import { AdminUsersPage } from "./pages/admin/AdminUsersPage";
-import { AdminSubjectsPage } from "./pages/admin/AdminSubjectsPage";
-import { AdminLevelsPage } from "./pages/admin/AdminLevelsPage";
-import { AdminQuestionsPage } from "./pages/admin/AdminQuestionsPage";
-import { AdminQuestionSubmissionsPage } from "./pages/admin/AdminQuestionSubmissionsPage";
-import { AdminProductsPage } from "./pages/admin/AdminProductsPage";
-import { AdminOrdersPage } from "./pages/admin/AdminOrdersPage";
-import { AdminRewardsPage } from "./pages/admin/AdminRewardsPage";
-import { AdminLeaderboardPage } from "./pages/admin/AdminLeaderboardPage";
-import { AdminSettingsPage } from "./pages/admin/AdminSettingsPage";
-import { AdminAuditLogsPage } from "./pages/admin/AdminAuditLogsPage";
+const AdminDashboardPage = lazy(() => import("./pages/admin/AdminDashboardPage").then((m) => ({ default: m.AdminDashboardPage })));
+const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((m) => ({ default: m.AdminUsersPage })));
+const AdminSubjectsPage = lazy(() => import("./pages/admin/AdminSubjectsPage").then((m) => ({ default: m.AdminSubjectsPage })));
+const AdminLevelsPage = lazy(() => import("./pages/admin/AdminLevelsPage").then((m) => ({ default: m.AdminLevelsPage })));
+const AdminQuestionsPage = lazy(() => import("./pages/admin/AdminQuestionsPage").then((m) => ({ default: m.AdminQuestionsPage })));
+const AdminQuestionSubmissionsPage = lazy(() => import("./pages/admin/AdminQuestionSubmissionsPage").then((m) => ({ default: m.AdminQuestionSubmissionsPage })));
+const AdminProductsPage = lazy(() => import("./pages/admin/AdminProductsPage").then((m) => ({ default: m.AdminProductsPage })));
+const AdminOrdersPage = lazy(() => import("./pages/admin/AdminOrdersPage").then((m) => ({ default: m.AdminOrdersPage })));
+const AdminRewardsPage = lazy(() => import("./pages/admin/AdminRewardsPage").then((m) => ({ default: m.AdminRewardsPage })));
+const AdminLeaderboardPage = lazy(() => import("./pages/admin/AdminLeaderboardPage").then((m) => ({ default: m.AdminLeaderboardPage })));
+const AdminSettingsPage = lazy(() => import("./pages/admin/AdminSettingsPage").then((m) => ({ default: m.AdminSettingsPage })));
+const AdminAuditLogsPage = lazy(() => import("./pages/admin/AdminAuditLogsPage").then((m) => ({ default: m.AdminAuditLogsPage })));
+const AdminGroupsPage = lazy(() => import("./pages/admin/AdminGroupsPage").then((m) => ({ default: m.AdminGroupsPage })));
+const AdminTeachersPage = lazy(() => import("./pages/admin/AdminTeachersPage").then((m) => ({ default: m.AdminTeachersPage })));
+const AdminStudentsPage = lazy(() => import("./pages/admin/AdminStudentsPage").then((m) => ({ default: m.AdminStudentsPage })));
+const AdminPaymentsPage = lazy(() => import("./pages/admin/AdminPaymentsPage").then((m) => ({ default: m.AdminPaymentsPage })));
+const AdminAdmissionsPage = lazy(() => import("./pages/admin/AdminAdmissionsPage").then((m) => ({ default: m.AdminAdmissionsPage })));
+
+// Teacher Pages
+const TeacherDashboardPage = lazy(() => import("./pages/teacher/TeacherDashboardPage").then((m) => ({ default: m.TeacherDashboardPage })));
+const TeacherTodayLessonsPage = lazy(() => import("./pages/teacher/TeacherTodayLessonsPage").then((m) => ({ default: m.TeacherTodayLessonsPage })));
+const TeacherGroupsPage = lazy(() => import("./pages/teacher/TeacherGroupsPage").then((m) => ({ default: m.TeacherGroupsPage })));
+const TeacherLessonsPage = lazy(() => import("./pages/teacher/TeacherLessonsPage").then((m) => ({ default: m.TeacherLessonsPage })));
+const TeacherHomeworkPage = lazy(() => import("./pages/teacher/TeacherHomeworkPage").then((m) => ({ default: m.TeacherHomeworkPage })));
+const TeacherAttendancePage = lazy(() => import("./pages/teacher/TeacherAttendancePage").then((m) => ({ default: m.TeacherAttendancePage })));
+const TeacherQuestionsPage = lazy(() => import("./pages/teacher/TeacherQuestionsPage").then((m) => ({ default: m.TeacherQuestionsPage })));
+const TeacherStudentsPage = lazy(() => import("./pages/teacher/TeacherStudentsPage").then((m) => ({ default: m.TeacherStudentsPage })));
+
+// Director Pages
+const DirectorDashboardPage = lazy(() => import("./pages/director/DirectorDashboardPage").then((m) => ({ default: m.DirectorDashboardPage })));
+const DirectorSalariesPage = lazy(() => import("./pages/director/DirectorSalariesPage").then((m) => ({ default: m.DirectorSalariesPage })));
+const DirectorExpensesPage = lazy(() => import("./pages/director/DirectorExpensesPage").then((m) => ({ default: m.DirectorExpensesPage })));
+const DirectorAnalyticsPage = lazy(() => import("./pages/director/DirectorAnalyticsPage").then((m) => ({ default: m.DirectorAnalyticsPage })));
+const DirectorSettingsPage = lazy(() => import("./pages/director/DirectorSettingsPage").then((m) => ({ default: m.DirectorSettingsPage })));
+
+const RootRedirect: React.FC = () => {
+  const { firebaseUser, user, isAdmin, isTeacher, isDirector, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-950">
+        <Spinner size="lg" className="text-brand-500" />
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (isDirector || user?.role === "director") {
+    return <Navigate to="/director" replace />;
+  }
+  if (isTeacher || user?.role === "teacher") {
+    return <Navigate to="/teacher" replace />;
+  }
+  if (isAdmin || user?.role === "admin") {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
+};
 
 export const App: React.FC = () => {
   return (
-    <Routes>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-slate-950">
+          <Spinner size="lg" className="text-brand-500" />
+        </div>
+      }
+    >
+      <Routes>
+      {/* Root Entry: Requires login immediately or redirects to role portal */}
+      <Route path="/" element={<RootRedirect />} />
+
       {/* Auth Routes */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
       </Route>
 
-      {/* Main Application Routes */}
+      {/* Main Application & Student Routes */}
       <Route
         element={
           <ProtectedRoute>
@@ -56,7 +133,6 @@ export const App: React.FC = () => {
           </ProtectedRoute>
         }
       >
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/subjects" element={<SubjectsPage />} />
@@ -73,6 +149,50 @@ export const App: React.FC = () => {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/questions/submit" element={<SubmitQuestionPage />} />
         <Route path="/reviews" element={<ReviewsPage />} />
+
+        {/* LMS Student Routes */}
+        <Route path="/lessons" element={<StudentLessonsPage />} />
+        <Route path="/lessons/:lessonId" element={<StudentLessonDetailPage />} />
+        <Route path="/homework" element={<StudentHomeworkPage />} />
+        <Route path="/questions/teacher" element={<StudentQuestionsPage />} />
+      </Route>
+
+      {/* Teacher Protected Routes */}
+      <Route
+        path="/teacher"
+        element={
+          <TeacherRoute>
+            <TeacherLayout />
+          </TeacherRoute>
+        }
+      >
+        <Route index element={<TeacherDashboardPage />} />
+        <Route path="today" element={<TeacherTodayLessonsPage />} />
+        <Route path="groups" element={<TeacherGroupsPage />} />
+        <Route path="students" element={<TeacherStudentsPage />} />
+        <Route path="lessons" element={<TeacherLessonsPage />} />
+        <Route path="homework" element={<TeacherHomeworkPage />} />
+        <Route path="attendance" element={<TeacherAttendancePage />} />
+        <Route path="questions" element={<TeacherQuestionsPage />} />
+      </Route>
+
+      {/* Director Protected Routes */}
+      <Route
+        path="/director"
+        element={
+          <DirectorRoute>
+            <DirectorLayout />
+          </DirectorRoute>
+        }
+      >
+        <Route index element={<DirectorDashboardPage />} />
+        <Route path="finance" element={<DirectorDashboardPage />} />
+        <Route path="salaries" element={<DirectorSalariesPage />} />
+        <Route path="expenses" element={<DirectorExpensesPage />} />
+        <Route path="analytics" element={<DirectorAnalyticsPage />} />
+        <Route path="groups" element={<DirectorAnalyticsPage />} />
+        <Route path="teachers" element={<DirectorSalariesPage />} />
+        <Route path="settings" element={<DirectorSettingsPage />} />
       </Route>
 
       {/* Admin Protected Routes */}
@@ -85,7 +205,12 @@ export const App: React.FC = () => {
         }
       >
         <Route index element={<AdminDashboardPage />} />
+        <Route path="admissions" element={<AdminAdmissionsPage />} />
         <Route path="users" element={<AdminUsersPage />} />
+        <Route path="teachers" element={<AdminTeachersPage />} />
+        <Route path="groups" element={<AdminGroupsPage />} />
+        <Route path="students" element={<AdminStudentsPage />} />
+        <Route path="payments" element={<AdminPaymentsPage />} />
         <Route path="subjects" element={<AdminSubjectsPage />} />
         <Route path="levels" element={<AdminLevelsPage />} />
         <Route path="questions" element={<AdminQuestionsPage />} />
@@ -99,8 +224,9 @@ export const App: React.FC = () => {
       </Route>
 
       {/* Fallback route */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   );
 };
 

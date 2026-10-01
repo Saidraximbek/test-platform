@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Navbar } from "../common/Navbar";
 import { Footer } from "../common/Footer";
@@ -6,10 +6,10 @@ import { useAuth } from "../../context/AuthContext";
 import {
   AlertTriangle,
   LayoutDashboard,
-  BookOpen,
-  Trophy,
-  ShoppingBag,
-  Package,
+  GraduationCap,
+  FileCheck,
+  MessageSquare,
+  User,
 } from "lucide-react";
 import { sound } from "../../utils/soundEffects";
 
@@ -19,10 +19,10 @@ export const AppLayout: React.FC = () => {
 
   const mobileNavItems = [
     { name: "Asosiy", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Fanlar", href: "/subjects", icon: BookOpen },
-    { name: "Reyting", href: "/leaderboard", icon: Trophy },
-    { name: "Do'kon", href: "/shop", icon: ShoppingBag },
-    { name: "Xaridlar", href: "/orders", icon: Package },
+    { name: "Darslar", href: "/lessons", icon: GraduationCap },
+    { name: "Vazifalar", href: "/homework", icon: FileCheck },
+    { name: "Savollar", href: "/questions/teacher", icon: MessageSquare },
+    { name: "Profil", href: "/profile", icon: User },
   ];
 
   const isActive = (path: string) => location.pathname.startsWith(path);

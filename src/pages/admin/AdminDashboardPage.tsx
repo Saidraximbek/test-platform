@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   Users,
@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   ArrowRight,
   Zap,
+  UserPlus,
 } from "lucide-react";
 import { adminService } from "../../services/adminService";
 import { subjectService } from "../../services/subjectService";
@@ -115,6 +116,13 @@ export const AdminDashboardPage: React.FC = () => {
   ];
 
   const quickActions = [
+    {
+      title: "Qabul Bo'limi (Lidlar)",
+      desc: "Yangi kelgan o'quvchilarni qabul qilish va login-parol berish",
+      icon: UserPlus,
+      href: "/admin/admissions",
+      color: "from-emerald-600 to-teal-600",
+    },
     {
       title: "Savollar Bazasi",
       desc: "Ommaviy CSV yoki yangi test savollari qo'shish",
@@ -267,11 +275,11 @@ export const AdminDashboardPage: React.FC = () => {
                     </span>
                     <span className="text-slate-600 font-bold">→</span>
                     <span className="text-slate-300 font-mono text-[11px]">
-                      {log.targetCollection} ({log.targetDocumentId.substring(0, 10)}...)
+                      {log.targetCollection} ({log.targetDocumentId ? log.targetDocumentId.substring(0, 10) : "-"}...)
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    Administrator: <strong className="text-slate-300">{log.adminUid.substring(0, 10)}</strong>
+                    Administrator: <strong className="text-slate-300">{log.adminUid ? log.adminUid.substring(0, 10) : "admin"}</strong>
                   </p>
                 </div>
 

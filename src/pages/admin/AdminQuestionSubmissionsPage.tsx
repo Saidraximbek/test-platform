@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FileQuestion, CheckCircle2, XCircle, Eye, Sparkles } from "lucide-react";
 import { questionSubmissionService } from "../../services/questionSubmissionService";
 import { useToast } from "../../context/ToastContext";
@@ -128,7 +128,9 @@ export const AdminQuestionSubmissionsPage: React.FC = () => {
               <tbody className="divide-y divide-slate-800">
                 {submissions.map((sub) => (
                   <tr key={sub.submissionId} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-4 font-mono text-slate-400">{sub.userId.substring(0, 8)}...</td>
+                    <td className="p-4 font-mono text-slate-400">
+                      {sub.userId ? `${sub.userId.substring(0, 8)}...` : "-"}
+                    </td>
                     <td className="p-4 font-semibold text-white max-w-sm truncate">{sub.text}</td>
                     <td className="p-4 text-slate-300">
                       {sub.subjectId} (Level {sub.suggestedLevelNumber})

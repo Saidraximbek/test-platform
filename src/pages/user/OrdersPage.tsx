@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Package, MapPin, CheckCircle2, Copy, Check } from "lucide-react";
 import { shopService } from "../../services/shopService";
@@ -84,7 +84,8 @@ export const OrdersPage: React.FC = () => {
       ) : (
         <div className="space-y-6">
           {orders.map((order) => {
-            const pickupCode = order.deliveryInfo?.trackingCode || `TL-${order.orderId.substring(6, 11)}`;
+            const pickupCode =
+              order.deliveryInfo?.trackingCode || (order.orderId ? `TL-${order.orderId.substring(6, 11)}` : "TL-ORDER");
             const isDelivered = order.status === "delivered";
 
             return (
@@ -93,7 +94,7 @@ export const OrdersPage: React.FC = () => {
                   <div>
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm text-slate-900 dark:text-slate-100">
-                        Xarid #{order.orderId.substring(6, 12)}
+                        Xarid #{order.orderId ? order.orderId.substring(6, 12) : "N/A"}
                       </span>
                       <Badge variant={statusVariants[order.status] || "neutral"}>
                         {statusLabels[order.status] || order.status}

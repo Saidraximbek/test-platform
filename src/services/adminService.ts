@@ -1,4 +1,4 @@
-﻿import {
+import {
   collection,
   doc,
   getDocs,
@@ -36,7 +36,19 @@ export const adminService = {
   async getAllUsers(search = "", statusFilter = "all", limitCount = 50): Promise<UserProfile[]> {
     const usersRef = collection(db, "users");
     const snap = await getDocs(query(usersRef, limit(limitCount)));
-    let list = snap.docs.map((d) => d.data() as UserProfile);
+    let list = snap.docs
+      .filter((d) => d.id !== "system_finance" && d.id !== "system_admissions" && !d.id.startsWith("lead_"))
+      .map((d) => {
+        const data = d.data();
+        return {
+          ...data,
+          uid: data.uid || d.id,
+          displayName: data.displayName || "Foydalanuvchi",
+          status: data.status || "active",
+          role: data.role || "user",
+          coinBalance: data.coinBalance ?? 0,
+        } as UserProfile;
+      });
 
     if (statusFilter !== "all") {
       list = list.filter((u) => u.status === statusFilter);
@@ -81,6 +93,14 @@ export const adminService = {
 
       return { success: true };
     }
+  },
+
+  async setUserRole(userId: string, role: string) {
+    await updateDoc(doc(db, "users", userId), {
+      role,
+      updatedAt: serverTimestamp(),
+    });
+    return { success: true };
   },
 
   async setAdminRole(userId: string, makeAdmin: boolean) {

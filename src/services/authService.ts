@@ -1,4 +1,4 @@
-﻿import {
+import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
@@ -17,8 +17,30 @@ import { auth, db } from "../lib/firebase";
 import { UserProfile } from "../types";
 
 export const authService = {
-  async login(email: string, pass: string) {
-    const cred = await signInWithEmailAndPassword(auth, email, pass);
+  async login(emailOrLogin: string, pass: string) {
+    const trimmed = emailOrLogin.trim().toLowerCase();
+    if (!trimmed.includes("@")) {
+      // User entered a plain login/username without domain
+      try {
+        const cred = await signInWithEmailAndPassword(auth, `${trimmed}@fargoniy.uz`, pass);
+        return cred.user;
+      } catch (err: any) {
+        if (
+          err.code === "auth/user-not-found" ||
+          err.code === "auth/invalid-credential" ||
+          err.code === "auth/invalid-email"
+        ) {
+          try {
+            const cred2 = await signInWithEmailAndPassword(auth, `${trimmed}@tillo.uz`, pass);
+            return cred2.user;
+          } catch (e2) {
+            // fallback
+          }
+        }
+        throw err;
+      }
+    }
+    const cred = await signInWithEmailAndPassword(auth, trimmed, pass);
     return cred.user;
   },
 

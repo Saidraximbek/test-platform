@@ -1,10 +1,12 @@
-﻿export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "student" | "teacher" | "director";
 export type UserStatus = "active" | "blocked" | "suspended";
 
 export interface UserProfile {
   uid: string;
   displayName: string;
-  age: number;
+  email?: string;
+  login?: string;
+  age?: number;
   phoneNumber: string;
   educationPlace: string;
   isCenterStudent: boolean;
@@ -14,9 +16,41 @@ export interface UserProfile {
   coinBalance: number;
   totalCorrectAnswers: number;
   testsCompleted: number;
+  // LMS Extended Profile Fields
+  school?: string;
+  grade?: string;
+  groupIds?: string[];
+  enrolledGroups?: EnrolledGroupInfo[];
+  teachingGroups?: EnrolledGroupInfo[];
+  subjectIds?: string[];
+  teacherId?: string;
+  specialty?: string;
+  salaryType?: "fixed" | "percentage" | "mixed";
+  salaryValue?: number;
+  salaryFixedAmount?: number;
+  enrollmentDate?: any;
+  publishedLessons?: Lesson[];
+  publishedHomeworks?: Homework[];
+  submissions?: HomeworkSubmission[];
+  studentSubmissions?: HomeworkSubmission[];
   createdAt: any;
   updatedAt: any;
   lastActiveAt: any;
+}
+
+export interface EnrolledGroupInfo {
+  groupId: string;
+  name: string;
+  subjectId?: string;
+  teacherId?: string;
+  teacherName?: string;
+  room?: string;
+  schedule?: string;
+  startTime?: string;
+  endTime?: string;
+  lessonDuration?: number;
+  monthlyPrice?: number;
+  enrolledAt?: any;
 }
 
 export interface UserProgress {
@@ -40,6 +74,9 @@ export interface Subject {
   icon: string;
   description: string;
   imageUrl: string | null;
+  teacherId?: string;
+  teacherName?: string;
+  monthlyPrice?: number;
   isActive: boolean;
   order: number;
   createdAt: any;
@@ -338,7 +375,12 @@ export type AuditAction =
   | "SETTINGS_CHANGE"
   | "REWARD_GRANT"
   | "ORDER_STATUS"
-  | "ADMIN_ROLE_CHANGE";
+  | "ADMIN_ROLE_CHANGE"
+  | "STUDENT_ENROLL"
+  | "GROUP_MUTATE"
+  | "PAYMENT_RECORD"
+  | "EXPENSE_RECORD"
+  | "SALARY_PROCESS";
 
 export interface AuditLogItem {
   logId: string;
@@ -350,4 +392,250 @@ export interface AuditLogItem {
   ipAddress: string | null;
   userAgent: string | null;
   createdAt: any;
+}
+
+// ==========================================
+// LMS & ERP EXTENSION TYPES (Farg'oniy Maktabi)
+// ==========================================
+
+export type GroupStatus = "active" | "archived" | "planned";
+
+export interface Group {
+  groupId: string;
+  name: string;
+  subjectId: string;
+  teacherId: string;
+  teacherName?: string;
+  room: string;
+  schedule: string; // e.g. "Dushanba, Chorshanba, Juma"
+  startTime: string; // e.g. "14:00"
+  endTime?: string; // e.g. "15:20"
+  lessonDuration: number; // in minutes e.g. 80
+  monthlyPrice?: number; // e.g. 500,000 UZS
+  maxStudents: number;
+  currentStudentsCount: number;
+  studentIds: string[];
+  status: GroupStatus;
+  description?: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface Course {
+  courseId: string;
+  title: string;
+  subjectId: string;
+  levelNumber?: number;
+  description: string;
+  isActive: boolean;
+  order: number;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface CourseModule {
+  moduleId: string;
+  courseId: string;
+  title: string;
+  order: number;
+  description?: string;
+  createdAt: any;
+}
+
+export type LessonStatus = "draft" | "published" | "archived";
+
+export interface LessonMaterial {
+  id: string;
+  title: string;
+  type: "video" | "pdf" | "link" | "text";
+  url?: string;
+  content?: string;
+}
+
+export interface Lesson {
+  lessonId: string;
+  title: string;
+  description: string;
+  subjectId: string;
+  groupId: string;
+  teacherId: string;
+  moduleId?: string;
+  lessonNumber: number;
+  scheduledDate: string; // YYYY-MM-DD
+  durationMinutes: number;
+  videoUrl?: string | null;
+  materialsText?: string | null;
+  pdfUrl?: string | null;
+  homeworkId?: string | null;
+  testId?: string | null; // references levelId or specific test in existing test system
+  status: LessonStatus;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export interface Homework {
+  homeworkId: string;
+  lessonId: string;
+  groupId: string;
+  teacherId: string;
+  title: string;
+  instructions: string;
+  maxScore: number;
+  deadline: string; // ISO string or date
+  lessonTitle?: string;
+  groupName?: string;
+  attachments?: string[];
+  createdAt: any;
+  updatedAt: any;
+}
+
+export type HomeworkSubmissionStatus =
+  | "ASSIGNED"
+  | "SUBMITTED"
+  | "REVIEWING"
+  | "COMPLETED"
+  | "LATE";
+
+export interface HomeworkSubmission {
+  submissionId: string;
+  homeworkId: string;
+  lessonId: string;
+  studentId: string;
+  studentName?: string;
+  teacherId: string;
+  textAnswer: string;
+  fileUrls?: string[];
+  status: HomeworkSubmissionStatus;
+  score?: number | null;
+  teacherComment?: string | null;
+  submittedAt: any;
+  reviewedAt?: any | null;
+  updatedAt: any;
+}
+
+export type AttendanceStatus = "present" | "absent" | "late";
+
+export interface AttendanceRecord {
+  attendanceId: string; // e.g. `${groupId}_${lessonId}_${date}`
+  groupId: string;
+  lessonId?: string;
+  teacherId: string;
+  date: string; // YYYY-MM-DD
+  records: Record<string, AttendanceStatus>; // { studentId: status }
+  createdAt: any;
+  updatedAt: any;
+}
+
+export type TeacherQuestionStatus = "NEW" | "IN_PROGRESS" | "ANSWERED" | "CLOSED";
+
+export interface TeacherQuestion {
+  questionId: string;
+  studentId: string;
+  studentName: string;
+  studentPhoto?: string | null;
+  teacherId: string;
+  teacherName?: string;
+  groupId?: string;
+  groupName?: string;
+  lessonId?: string;
+  subjectId?: string;
+  text: string;
+  imageUrl?: string | null;
+  attachmentUrl?: string | null;
+  status: TeacherQuestionStatus;
+  answerText?: string | null;
+  videoAnswerUrl?: string | null;
+  createdAt: any;
+  answeredAt?: any | null;
+}
+
+export type PaymentStatus = "PAID" | "PARTIAL" | "DEBT" | "CANCELLED";
+
+export interface Payment {
+  paymentId: string;
+  studentId: string;
+  studentName: string;
+  groupId: string;
+  groupName?: string;
+  subjectId: string;
+  amount: number;
+  month: string; // e.g. "2026-09" or "Sentyabr 2026"
+  paymentDate: string; // YYYY-MM-DD
+  adminId: string;
+  adminName?: string;
+  status: PaymentStatus;
+  note?: string;
+  receiptNumber: string;
+  createdAt: any;
+  updatedAt: any;
+}
+
+export type ExpenseCategory =
+  | "rent"
+  | "salary"
+  | "advertising"
+  | "utilities"
+  | "equipment"
+  | "other";
+
+export interface Expense {
+  expenseId: string;
+  category: ExpenseCategory;
+  amount: number;
+  date: string; // YYYY-MM-DD
+  description: string;
+  createdBy: string;
+  createdByName?: string;
+  createdAt: any;
+}
+
+export type SalaryType = "percentage" | "fixed" | "mixed";
+export type SalaryStatus = "PENDING" | "APPROVED" | "PAID";
+
+export interface TeacherSalary {
+  salaryId: string;
+  teacherId: string;
+  teacherName: string;
+  month: string; // e.g. "2026-09"
+  salaryType: SalaryType;
+  percentage?: number; // e.g. 40%
+  fixedSalary?: number;
+  bonus: number;
+  deduction: number;
+  collectedPayment: number; // total tuition fees collected from teacher's students
+  calculatedSalary: number;
+  paidSalary: number;
+  remainingSalary: number;
+  status: SalaryStatus;
+  approvedBy?: string | null;
+  approvedAt?: any | null;
+  paidAt?: any | null;
+  note?: string;
+  updatedAt: any;
+}
+
+export type AdmissionStatus = "new" | "contacted" | "active" | "cancelled";
+
+export interface AdmissionRecord {
+  id: string;
+  fullName: string;
+  phoneNumber: string;
+  parentPhone?: string;
+  age?: number | string;
+  birthDate?: string;
+  interestedSubject?: string;
+  subjectId?: string;
+  preferredTime?: string;
+  source?: string;
+  notes?: string;
+  status: AdmissionStatus;
+  assignedStudentUid?: string;
+  assignedGroupId?: string;
+  assignedGroupName?: string;
+  login?: string;
+  plainPassword?: string;
+  activatedAt?: any;
+  activatedBy?: string;
+  createdAt: any;
+  updatedAt?: any;
 }

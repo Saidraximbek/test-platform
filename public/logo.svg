@@ -1,0 +1,15 @@
+<svg width="420" height="120" viewBox="0 0 420 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Diamond Emblem Group -->
+  <g transform="translate(60, 60) rotate(-45) translate(-60, -60)">
+    <!-- Blue 'F' Geometry -->
+    <path d="M16 16H66V34H36V50H60V66H36V104H16V16Z" fill="#0B3E91"/>
+    
+    <!-- Orange Dynamic Geometry -->
+    <path d="M72 16H104V104H44V88H86V72H72V16Z" fill="#F26522"/>
+    <path d="M44 50H68V66H44V50Z" fill="#F26522"/>
+  </g>
+
+  <!-- Typography -->
+  <text x="135" y="62" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="38" letter-spacing="-0.5px" fill="#0B3E91">FARG'ONIY</text>
+  <text x="136" y="94" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-weight="500" font-size="28" letter-spacing="0.2px" fill="#0B3E91">maktabi</text>
+</svg>

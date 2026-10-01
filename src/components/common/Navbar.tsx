@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   BookOpen,
@@ -15,14 +15,19 @@ import {
   LayoutDashboard,
   CheckCircle2,
   Package,
+  GraduationCap,
+  Award,
+  Crown,
+  FileCheck,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useNotifications } from "../../context/NotificationContext";
 import { CoinBadge } from "./CoinBadge";
 import { sound } from "../../utils/soundEffects";
+import { FargoniyLogo } from "./FargoniyLogo";
 
 export const Navbar: React.FC = () => {
-  const { user, firebaseUser, isAdmin, logout } = useAuth();
+  const { user, firebaseUser, isAdmin, isTeacher, isDirector, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
@@ -45,12 +50,11 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: "Bosh sahifa", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Fanlar", href: "/subjects", icon: BookOpen },
-    { name: "Reyting", href: "/leaderboard", icon: Trophy },
+    { name: "Darslarim", href: "/lessons", icon: GraduationCap },
+    { name: "Uy vazifasi", href: "/homework", icon: FileCheck },
+    { name: "Ustozga savol", href: "/questions/teacher", icon: MessageSquare },
+    { name: "Fanlar & Test", href: "/subjects", icon: BookOpen },
     { name: "Do'kon", href: "/shop", icon: ShoppingBag },
-    { name: "Xaridlarim", href: "/orders", icon: Package },
-    { name: "Savol taklif", href: "/questions/submit", icon: PlusCircle },
-    { name: "Fikrlar", href: "/reviews", icon: MessageSquare },
   ];
 
   const isActive = (path: string) => location.pathname.startsWith(path);
@@ -59,20 +63,22 @@ export const Navbar: React.FC = () => {
     <header className="sticky top-0 z-40 bg-white/90 dark:bg-[#0E1322]/90 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800/80">
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-14 sm:h-16">
-          {/* Brand Logo */}
-          <div className="flex items-center gap-6">
+          {/* Brand Logo & Mobile Trigger */}
+          <div className="flex items-center gap-2 sm:gap-6">
+            {/* Mobile Hamburger Trigger */}
+            <button
+              onClick={() => {
+                setShowMobileMenu(true);
+                sound.playClick();
+              }}
+              className="lg:hidden p-1.5 -ml-1 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              title="Asosiy menyu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
             <Link to="/dashboard" className="flex items-center gap-2 group">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-brand-600 via-sky-500 to-amber-400 flex items-center justify-center text-white shadow-md shadow-brand-500/20 group-hover:scale-105 transition-transform">
-                <span className="font-black text-base sm:text-lg tracking-tighter">T</span>
-              </div>
-              <div>
-                <span className="font-extrabold text-base sm:text-lg tracking-tight bg-gradient-to-r from-brand-600 to-sky-500 bg-clip-text text-transparent">
-                  TILLO
-                </span>
-                <span className="text-[9px] sm:text-[10px] hidden sm:block -mt-1 font-bold text-slate-400 uppercase tracking-wider">
-                  Test Platformasi
-                </span>
-              </div>
+              <FargoniyLogo size="sm" subtitle="LMS & Test" />
             </Link>
 
             {/* Desktop Navigation Links */}
@@ -200,6 +206,8 @@ export const Navbar: React.FC = () => {
                       <img
                         src={currentUser.photoURL}
                         alt={currentUser.displayName}
+                        loading="lazy"
+                        decoding="async"
                         className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover border border-slate-200 dark:border-slate-700"
                       />
                     ) : (
@@ -243,6 +251,16 @@ export const Navbar: React.FC = () => {
                         <PlusCircle className="w-4 h-4 text-emerald-500" /> Savol taklif qilish
                       </Link>
 
+                      {isDirector && (
+                        <Link
+                          to="/director"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-amber-500 font-bold hover:bg-amber-500/10 transition-colors"
+                        >
+                          <Crown className="w-4 h-4 text-amber-500" /> Direktor Boshqaruvi
+                        </Link>
+                      )}
+
                       {isAdmin && (
                         <Link
                           to="/admin"
@@ -250,6 +268,16 @@ export const Navbar: React.FC = () => {
                           className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-brand-600 font-semibold hover:bg-brand-50 dark:hover:bg-brand-950/50 transition-colors"
                         >
                           <Shield className="w-4 h-4 text-brand-500" /> Admin Boshqaruvi
+                        </Link>
+                      )}
+
+                      {isTeacher && (
+                        <Link
+                          to="/teacher"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-sky-500 font-semibold hover:bg-sky-500/10 transition-colors"
+                        >
+                          <Award className="w-4 h-4 text-sky-500" /> Ustoz Portali
                         </Link>
                       )}
 
@@ -284,6 +312,153 @@ export const Navbar: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Student & General Mobile Sidebar Drawer */}
+      {showMobileMenu && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/75 backdrop-blur-sm transition-opacity"
+            onClick={() => setShowMobileMenu(false)}
+          />
+
+          {/* Drawer Content */}
+          <div className="fixed inset-y-0 left-0 w-80 max-w-[85vw] bg-white dark:bg-[#0E1322] border-r border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col z-50 animate-in slide-in-from-left duration-200">
+            {/* Drawer Header */}
+            <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <FargoniyLogo size="sm" subtitle="LMS & Test" />
+              <button
+                onClick={() => setShowMobileMenu(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Profile summary card */}
+            {currentUser && (
+              <div className="p-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50 dark:bg-slate-950/40">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-sky-500 text-white flex items-center justify-center font-bold text-sm shadow">
+                    {currentUser.photoURL ? (
+                      <img src={currentUser.photoURL} alt="" loading="lazy" decoding="async" className="w-full h-full rounded-xl object-cover" />
+                    ) : (
+                      currentUser.displayName?.charAt(0) || "U"
+                    )}
+                  </div>
+                  <div className="overflow-hidden flex-1">
+                    <p className="text-xs font-bold truncate text-slate-900 dark:text-white">
+                      {currentUser.displayName}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <CoinBadge amount={currentUser.coinBalance || 0} size="sm" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Role Switcher if Admin, Director, or Teacher */}
+                {(isAdmin || isDirector || isTeacher) && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-1.5">
+                    {isDirector && (
+                      <Link
+                        to="/director"
+                        onClick={() => setShowMobileMenu(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Crown className="w-4 h-4" /> Direktor Paneli
+                        </span>
+                        <span className="text-[10px] uppercase font-mono">ERP</span>
+                      </Link>
+                    )}
+                    {isAdmin && (
+                      <Link
+                        to="/admin"
+                        onClick={() => setShowMobileMenu(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-brand-500 bg-brand-500/10 border border-brand-500/20"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Shield className="w-4 h-4" /> Admin Paneli
+                        </span>
+                        <span className="text-[10px] uppercase font-mono">LMS</span>
+                      </Link>
+                    )}
+                    {isTeacher && (
+                      <Link
+                        to="/teacher"
+                        onClick={() => setShowMobileMenu(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-sky-500 bg-sky-500/10 border border-sky-500/20"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Award className="w-4 h-4" /> Ustoz Portali
+                        </span>
+                        <span className="text-[10px] uppercase font-mono">LMS</span>
+                      </Link>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Navigation links list */}
+            <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+              <p className="px-3 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
+                Bo'limlar
+              </p>
+              {[
+                { name: "Bosh sahifa", href: "/dashboard", icon: LayoutDashboard },
+                { name: "Darslarim", href: "/lessons", icon: GraduationCap },
+                { name: "Uy vazifasi", href: "/homework", icon: FileCheck },
+                { name: "Ustozga savol", href: "/questions/teacher", icon: MessageSquare },
+                { name: "Fanlar & Testlar", href: "/subjects", icon: BookOpen },
+                { name: "Tillo Do'kon", href: "/shop", icon: ShoppingBag },
+                { name: "Yetakchilar Reytingi", href: "/leaderboard", icon: Trophy },
+                { name: "Xaridlarim", href: "/orders", icon: Package },
+                { name: "Fikrlar & Baholar", href: "/reviews", icon: Award },
+                { name: "Savol taklif qilish", href: "/questions/submit", icon: PlusCircle },
+              ].map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={() => {
+                      setShowMobileMenu(false);
+                      sound.playClick();
+                    }}
+                    className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors ${
+                      active
+                        ? "bg-brand-500/15 text-brand-600 dark:text-brand-400 font-bold"
+                        : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-4 h-4" />
+                      <span>{item.name}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Logout button at bottom */}
+            {currentUser && (
+              <div className="p-3 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  onClick={() => {
+                    setShowMobileMenu(false);
+                    handleLogout();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-all border border-rose-500/20"
+                >
+                  <LogOut className="w-4 h-4" /> Chiqish
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 };

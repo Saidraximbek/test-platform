@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ShoppingBag, Plus, Edit2, Package, Tag } from "lucide-react";
 import { shopService } from "../../services/shopService";
 import { useToast } from "../../context/ToastContext";
@@ -150,7 +150,7 @@ export const AdminProductsPage: React.FC = () => {
                     <td className="p-4">
                       <div className="flex items-center gap-3">
                         {p.images?.[0] ? (
-                          <img src={p.images[0]} alt={p.title} className="w-10 h-10 rounded-lg object-cover" />
+                          <img src={p.images[0]} alt={p.title} loading="lazy" decoding="async" className="w-10 h-10 rounded-lg object-cover" />
                         ) : (
                           <div className="w-10 h-10 rounded-lg bg-slate-800 flex items-center justify-center">
                             <Package className="w-5 h-5 text-slate-500" />

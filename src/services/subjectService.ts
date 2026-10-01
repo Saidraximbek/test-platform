@@ -10,8 +10,14 @@ import {
 import { db } from "../lib/firebase";
 import { Subject } from "../types";
 
+let subjectsMemCache: { data: Subject[]; time: number } | null = null;
+
 export const subjectService = {
   async getSubjects(onlyActive = true): Promise<Subject[]> {
+    if (onlyActive && subjectsMemCache && Date.now() - subjectsMemCache.time < 60000) {
+      return subjectsMemCache.data;
+    }
+
     const subjectsRef = collection(db, "subjects");
     const snap = await getDocs(subjectsRef);
     let list = snap.docs.map((d) => d.data() as Subject);
@@ -20,7 +26,11 @@ export const subjectService = {
       list = list.filter((s) => s.isActive !== false);
     }
 
-    return list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    const sorted = list.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    if (onlyActive) {
+      subjectsMemCache = { data: sorted, time: Date.now() };
+    }
+    return sorted;
   },
 
   async getSubjectById(subjectId: string): Promise<Subject | null> {
@@ -42,6 +52,9 @@ export const subjectService = {
       icon: data.icon || "BookOpen",
       description: data.description || "",
       imageUrl: data.imageUrl || null,
+      teacherId: data.teacherId || "",
+      teacherName: data.teacherName || "",
+      monthlyPrice: data.monthlyPrice !== undefined ? Number(data.monthlyPrice) : 450000,
       isActive: data.isActive !== undefined ? data.isActive : true,
       order: data.order !== undefined ? Number(data.order) : 1,
       createdAt: data.createdAt || serverTimestamp(),
@@ -49,10 +62,12 @@ export const subjectService = {
     };
 
     await setDoc(subjectRef, docData, { merge: true });
+    subjectsMemCache = null;
     return docData;
   },
 
   async deleteSubject(subjectId: string) {
     await deleteDoc(doc(db, "subjects", subjectId));
+    subjectsMemCache = null;
   },
 };

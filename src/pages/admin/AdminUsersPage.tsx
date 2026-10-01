@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Users,
   Search,
@@ -8,6 +8,7 @@ import {
   PauseCircle,
   CheckCircle2,
   AlertTriangle,
+  Crown,
 } from "lucide-react";
 import { adminService } from "../../services/adminService";
 import { coinService } from "../../services/coinService";
@@ -41,8 +42,9 @@ export const AdminUsersPage: React.FC = () => {
   const [coinReason, setCoinReason] = useState("");
   const [isAdjustingCoin, setIsAdjustingCoin] = useState(false);
 
-  // Admin Role Modal
+  // Role Modal
   const [roleModalUser, setRoleModalUser] = useState<UserProfile | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>("user");
   const [isAssigningRole, setIsAssigningRole] = useState(false);
 
   const fetchUsers = async () => {
@@ -104,12 +106,12 @@ export const AdminUsersPage: React.FC = () => {
     }
   };
 
-  const handleToggleAdmin = async (targetUser: UserProfile) => {
-    const makeAdmin = targetUser.role !== "admin";
+  const handleSaveRole = async () => {
+    if (!roleModalUser) return;
     setIsAssigningRole(true);
     try {
-      await adminService.setAdminRole(targetUser.uid, makeAdmin);
-      success(`Foydalanuvchi roli ${makeAdmin ? "Admin" : "User"} ga o'zgartirildi`);
+      await adminService.setUserRole(roleModalUser.uid, selectedRole);
+      success(`Foydalanuvchi roli "${selectedRole.toUpperCase()}" ga o'zgartirildi`);
       setRoleModalUser(null);
       fetchUsers();
     } catch (err: any) {
@@ -186,23 +188,26 @@ export const AdminUsersPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800">
-                {users.map((u) => (
-                  <tr key={u.uid} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        {u.photoURL ? (
-                          <img src={u.photoURL} alt={u.displayName} className="w-8 h-8 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold">
-                            {u.displayName?.charAt(0) || "U"}
+                {users.map((u, idx) => {
+                  const uidStr = u.uid || `user-${idx}`;
+                  const shortUid = uidStr.length > 10 ? `${uidStr.substring(0, 10)}...` : uidStr;
+                  return (
+                    <tr key={uidStr} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="p-4">
+                        <div className="flex items-center gap-3">
+                          {u.photoURL ? (
+                            <img src={u.photoURL} alt={u.displayName || "User"} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-brand-500/20 text-brand-400 flex items-center justify-center font-bold">
+                              {u.displayName?.charAt(0) || "U"}
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-bold text-white block">{u.displayName || "Foydalanuvchi"}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{shortUid}</span>
                           </div>
-                        )}
-                        <div>
-                          <span className="font-bold text-white block">{u.displayName}</span>
-                          <span className="text-[10px] text-slate-500 font-mono">{u.uid.substring(0, 10)}...</span>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
                     <td className="p-4 text-slate-300">
                       <div>{u.phoneNumber || "-"}</div>
@@ -260,9 +265,23 @@ export const AdminUsersPage: React.FC = () => {
                       >
                         <Shield className="w-4 h-4" />
                       </Button>
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setRoleModalUser(u);
+                          setSelectedRole(u.role || "user");
+                        }}
+                        className="text-purple-400 hover:bg-purple-400/10"
+                        title="Rolni o'zgartirish (Direktor, Admin, O'qituvchi, O'quvchi)"
+                      >
+                        <Crown className="w-4 h-4" />
+                      </Button>
                     </td>
                   </tr>
-                ))}
+                );
+              })}
               </tbody>
             </table>
           </div>
@@ -361,6 +380,52 @@ export const AdminUsersPage: React.FC = () => {
               </Button>
               <Button variant="amber" isLoading={isAdjustingCoin} onClick={handleAdjustCoins}>
                 Tangani o'zgartirish
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Role Change Modal */}
+      <Modal
+        isOpen={!!roleModalUser}
+        onClose={() => setRoleModalUser(null)}
+        title="Foydalanuvchi Rolini O'zgartirish"
+      >
+        {roleModalUser && (
+          <div className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
+              <p className="text-xs text-slate-300">
+                Foydalanuvchi: <strong className="text-white">{roleModalUser.displayName}</strong>
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Hozirgi roli: <span className="font-bold uppercase text-brand-400">{roleModalUser.role || "user"}</span>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                Yangi rol tanlang:
+              </label>
+              <select
+                value={selectedRole}
+                onChange={(e) => setSelectedRole(e.target.value)}
+                className="w-full rounded-xl border border-slate-700 bg-slate-800 text-xs p-3 text-white focus:outline-none focus:border-brand-500"
+              >
+                <option value="director">👑 Direktor (ERP, Moliya, Oyliklar, Xarajatlar, To'liq nazorat)</option>
+                <option value="admin">🛡️ Administrator (Guruhlar, O'quvchilar, To'lovlar qabul qilish)</option>
+                <option value="teacher">👨‍🏫 O'qituvchi (Darslar, Uyga vazifalar, Davomat, Savollar)</option>
+                <option value="student">🎓 O'quvchi (LMS darslar, Vazifalar, Baholar, Testlar)</option>
+                <option value="user">👤 Oddiy foydalanuvchi (Faqat testlar va Do'kon)</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <Button variant="outline" onClick={() => setRoleModalUser(null)}>
+                Bekor qilish
+              </Button>
+              <Button isLoading={isAssigningRole} onClick={handleSaveRole}>
+                Rolni Saqlash
               </Button>
             </div>
           </div>

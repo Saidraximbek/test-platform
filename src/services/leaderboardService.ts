@@ -1,4 +1,4 @@
-﻿import { httpsCallable } from "firebase/functions";
+import { httpsCallable } from "firebase/functions";
 import {
   collection,
   doc,
@@ -11,14 +11,22 @@ import {
 import { db, functions } from "../lib/firebase";
 import { LeaderboardStats, LeaderboardRankingEntry, UserProfile, UserProgress } from "../types";
 
+const leaderboardMemCache = new Map<string, { data: LeaderboardStats; time: number }>();
+
 export const leaderboardService = {
   async getLeaderboardStats(boardType: string): Promise<LeaderboardStats> {
+    const cachedMem = leaderboardMemCache.get(boardType);
+    if (cachedMem && Date.now() - cachedMem.time < 60000) {
+      return cachedMem.data;
+    }
+
     try {
       // 1. Try to get cached snapshot from leaderboard_stats
       const snap = await getDoc(doc(db, "leaderboard_stats", boardType));
       if (snap.exists()) {
         const data = snap.data() as LeaderboardStats;
         if (data.rankings && data.rankings.length > 0) {
+          leaderboardMemCache.set(boardType, { data, time: Date.now() });
           return data;
         }
       }
@@ -77,33 +85,36 @@ export const leaderboardService = {
         userScores[p.userId].attempts += p.attempts || 0;
       });
 
-      const entries: LeaderboardRankingEntry[] = [];
-      for (const [uid, stats] of Object.entries(userScores)) {
-        const userSnap = await getDoc(doc(db, "users", uid));
-        const u = userSnap.exists() ? (userSnap.data() as UserProfile) : null;
-        const score = stats.correct * 10 + stats.attempts * 2;
+      const entries: LeaderboardRankingEntry[] = await Promise.all(
+        Object.entries(userScores).map(async ([uid, stats]) => {
+          const userSnap = await getDoc(doc(db, "users", uid));
+          const u = userSnap.exists() ? (userSnap.data() as UserProfile) : null;
+          const score = stats.correct * 10 + stats.attempts * 2;
 
-        entries.push({
-          rank: 1,
-          userId: uid,
-          displayName: u?.displayName || "Foydalanuvchi",
-          photoURL: u?.photoURL || "",
-          score,
-          coinBalance: u?.coinBalance || 0,
-          testsCompleted: stats.attempts,
-        });
-      }
+          return {
+            rank: 1,
+            userId: uid,
+            displayName: u?.displayName || "Foydalanuvchi",
+            photoURL: u?.photoURL || "",
+            score,
+            coinBalance: u?.coinBalance || 0,
+            testsCompleted: stats.attempts,
+          };
+        })
+      );
 
       entries.sort((a, b) => b.score - a.score);
       entries.forEach((e, idx) => {
         e.rank = idx + 1;
       });
 
-      return {
+      const result = {
         boardType,
         lastCalculatedAt: new Date(),
         rankings: entries,
       };
+      leaderboardMemCache.set(boardType, { data: result, time: Date.now() });
+      return result;
     }
 
     return {
