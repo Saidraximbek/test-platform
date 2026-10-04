@@ -13,6 +13,7 @@ import {
   Sparkles,
   CheckCircle2,
   Video,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { groupService } from "../../services/groupService";
@@ -97,8 +98,13 @@ export const TeacherDashboardPage: React.FC = () => {
             <Link to="/teacher/lessons">
               <Button leftIcon={<Plus className="w-4 h-4" />}>Yangi Dars Qo'shish</Button>
             </Link>
+            <Link to="/teacher/salary">
+              <Button variant="secondary" leftIcon={<DollarSign className="w-4 h-4" />}>
+                Mening Oyligim
+              </Button>
+            </Link>
             <Link to="/teacher/attendance">
-              <Button variant="secondary" leftIcon={<ClipboardList className="w-4 h-4" />}>
+              <Button variant="outline" leftIcon={<ClipboardList className="w-4 h-4" />}>
                 Davomat Olish
               </Button>
             </Link>

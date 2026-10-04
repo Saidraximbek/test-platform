@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Users,
   Search,
@@ -9,9 +10,11 @@ import {
   CheckCircle2,
   AlertTriangle,
   Crown,
+  ArrowUpRight,
 } from "lucide-react";
 import { adminService } from "../../services/adminService";
 import { coinService } from "../../services/coinService";
+import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { UserProfile, UserStatus } from "../../types";
 import { Card } from "../../components/common/Card";
@@ -24,6 +27,7 @@ import { CoinBadge } from "../../components/common/CoinBadge";
 import { formatDate, formatCoins } from "../../utils";
 
 export const AdminUsersPage: React.FC = () => {
+  const { isDirector } = useAuth();
   const { success, error: toastError } = useToast();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [search, setSearch] = useState("");
@@ -41,11 +45,6 @@ export const AdminUsersPage: React.FC = () => {
   const [coinAmount, setCoinAmount] = useState<number>(50);
   const [coinReason, setCoinReason] = useState("");
   const [isAdjustingCoin, setIsAdjustingCoin] = useState(false);
-
-  // Role Modal
-  const [roleModalUser, setRoleModalUser] = useState<UserProfile | null>(null);
-  const [selectedRole, setSelectedRole] = useState<string>("user");
-  const [isAssigningRole, setIsAssigningRole] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -106,21 +105,6 @@ export const AdminUsersPage: React.FC = () => {
     }
   };
 
-  const handleSaveRole = async () => {
-    if (!roleModalUser) return;
-    setIsAssigningRole(true);
-    try {
-      await adminService.setUserRole(roleModalUser.uid, selectedRole);
-      success(`Foydalanuvchi roli "${selectedRole.toUpperCase()}" ga o'zgartirildi`);
-      setRoleModalUser(null);
-      fetchUsers();
-    } catch (err: any) {
-      toastError(err.message || "Rolni o'zgartirishda xatolik");
-    } finally {
-      setIsAssigningRole(false);
-    }
-  };
-
   const statusVariants: Record<string, "success" | "warning" | "danger"> = {
     active: "success",
     suspended: "warning",
@@ -136,6 +120,25 @@ export const AdminUsersPage: React.FC = () => {
             Foydalanuvchilar ro'yxati, hisob holatlari, Tillo balansi va huquqlar
           </p>
         </div>
+      </div>
+
+      {/* Notice Banner */}
+      <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+        <div className="flex items-center gap-2.5 text-slate-400">
+          <Shield className="w-4 h-4 text-amber-400 shrink-0" />
+          <span>
+            <strong className="text-white">Eslatma:</strong> Foydalanuvchilarga rol (Direktor, Admin, O'qituvchi) tayinlash vakolati faqat Direktor paneliga o'tkazilgan.
+          </span>
+        </div>
+        {isDirector && (
+          <Link
+            to="/director/users"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold whitespace-nowrap"
+          >
+            <span>Direktor Panelida Rollarni Boshqarish</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
       </div>
 
       {/* Filter and Search */}
@@ -231,11 +234,27 @@ export const AdminUsersPage: React.FC = () => {
 
                     <td className="p-4">
                       <span
-                        className={`text-[11px] font-bold ${
-                          u.role === "admin" ? "text-brand-400" : "text-slate-400"
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-md inline-block ${
+                          u.role === "director"
+                            ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
+                            : u.role === "admin"
+                            ? "bg-purple-500/10 text-purple-400 border border-purple-500/20"
+                            : u.role === "teacher"
+                            ? "bg-sky-500/10 text-sky-400 border border-sky-500/20"
+                            : u.role === "student"
+                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                            : "bg-slate-800 text-slate-400"
                         }`}
                       >
-                        {u.role}
+                        {u.role === "director"
+                          ? "👑 Direktor"
+                          : u.role === "admin"
+                          ? "🛡️ Admin"
+                          : u.role === "teacher"
+                          ? "👨‍🏫 O'qituvchi"
+                          : u.role === "student"
+                          ? "🎓 O'quvchi"
+                          : "👤 Foydalanuvchi"}
                       </span>
                     </td>
 
@@ -264,19 +283,6 @@ export const AdminUsersPage: React.FC = () => {
                         title="Hisob holatini o'zgartirish"
                       >
                         <Shield className="w-4 h-4" />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setRoleModalUser(u);
-                          setSelectedRole(u.role || "user");
-                        }}
-                        className="text-purple-400 hover:bg-purple-400/10"
-                        title="Rolni o'zgartirish (Direktor, Admin, O'qituvchi, O'quvchi)"
-                      >
-                        <Crown className="w-4 h-4" />
                       </Button>
                     </td>
                   </tr>
@@ -380,52 +386,6 @@ export const AdminUsersPage: React.FC = () => {
               </Button>
               <Button variant="amber" isLoading={isAdjustingCoin} onClick={handleAdjustCoins}>
                 Tangani o'zgartirish
-              </Button>
-            </div>
-          </div>
-        )}
-      </Modal>
-
-      {/* Role Change Modal */}
-      <Modal
-        isOpen={!!roleModalUser}
-        onClose={() => setRoleModalUser(null)}
-        title="Foydalanuvchi Rolini O'zgartirish"
-      >
-        {roleModalUser && (
-          <div className="space-y-4">
-            <div className="p-3.5 rounded-xl bg-slate-800/80 border border-slate-700/80">
-              <p className="text-xs text-slate-300">
-                Foydalanuvchi: <strong className="text-white">{roleModalUser.displayName}</strong>
-              </p>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Hozirgi roli: <span className="font-bold uppercase text-brand-400">{roleModalUser.role || "user"}</span>
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Yangi rol tanlang:
-              </label>
-              <select
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-                className="w-full rounded-xl border border-slate-700 bg-slate-800 text-xs p-3 text-white focus:outline-none focus:border-brand-500"
-              >
-                <option value="director">👑 Direktor (ERP, Moliya, Oyliklar, Xarajatlar, To'liq nazorat)</option>
-                <option value="admin">🛡️ Administrator (Guruhlar, O'quvchilar, To'lovlar qabul qilish)</option>
-                <option value="teacher">👨‍🏫 O'qituvchi (Darslar, Uyga vazifalar, Davomat, Savollar)</option>
-                <option value="student">🎓 O'quvchi (LMS darslar, Vazifalar, Baholar, Testlar)</option>
-                <option value="user">👤 Oddiy foydalanuvchi (Faqat testlar va Do'kon)</option>
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-              <Button variant="outline" onClick={() => setRoleModalUser(null)}>
-                Bekor qilish
-              </Button>
-              <Button isLoading={isAssigningRole} onClick={handleSaveRole}>
-                Rolni Saqlash
               </Button>
             </div>
           </div>

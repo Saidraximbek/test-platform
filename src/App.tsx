@@ -70,9 +70,12 @@ const TeacherHomeworkPage = lazy(() => import("./pages/teacher/TeacherHomeworkPa
 const TeacherAttendancePage = lazy(() => import("./pages/teacher/TeacherAttendancePage").then((m) => ({ default: m.TeacherAttendancePage })));
 const TeacherQuestionsPage = lazy(() => import("./pages/teacher/TeacherQuestionsPage").then((m) => ({ default: m.TeacherQuestionsPage })));
 const TeacherStudentsPage = lazy(() => import("./pages/teacher/TeacherStudentsPage").then((m) => ({ default: m.TeacherStudentsPage })));
+const TeacherSalaryPage = lazy(() => import("./pages/teacher/TeacherSalaryPage").then((m) => ({ default: m.TeacherSalaryPage })));
 
 // Director Pages
 const DirectorDashboardPage = lazy(() => import("./pages/director/DirectorDashboardPage").then((m) => ({ default: m.DirectorDashboardPage })));
+const DirectorUsersPage = lazy(() => import("./pages/director/DirectorUsersPage").then((m) => ({ default: m.DirectorUsersPage })));
+const DirectorFinancePage = lazy(() => import("./pages/director/DirectorFinancePage").then((m) => ({ default: m.DirectorFinancePage })));
 const DirectorSalariesPage = lazy(() => import("./pages/director/DirectorSalariesPage").then((m) => ({ default: m.DirectorSalariesPage })));
 const DirectorExpensesPage = lazy(() => import("./pages/director/DirectorExpensesPage").then((m) => ({ default: m.DirectorExpensesPage })));
 const DirectorAnalyticsPage = lazy(() => import("./pages/director/DirectorAnalyticsPage").then((m) => ({ default: m.DirectorAnalyticsPage })));
@@ -174,6 +177,7 @@ export const App: React.FC = () => {
         <Route path="homework" element={<TeacherHomeworkPage />} />
         <Route path="attendance" element={<TeacherAttendancePage />} />
         <Route path="questions" element={<TeacherQuestionsPage />} />
+        <Route path="salary" element={<TeacherSalaryPage />} />
       </Route>
 
       {/* Director Protected Routes */}
@@ -186,7 +190,8 @@ export const App: React.FC = () => {
         }
       >
         <Route index element={<DirectorDashboardPage />} />
-        <Route path="finance" element={<DirectorDashboardPage />} />
+        <Route path="users" element={<DirectorUsersPage />} />
+        <Route path="finance" element={<DirectorFinancePage />} />
         <Route path="salaries" element={<DirectorSalariesPage />} />
         <Route path="expenses" element={<DirectorExpensesPage />} />
         <Route path="analytics" element={<DirectorAnalyticsPage />} />

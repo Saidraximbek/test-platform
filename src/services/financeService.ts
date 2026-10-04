@@ -24,6 +24,25 @@ import {
 } from "../types";
 import { teacherService } from "./teacherService";
 import { groupService } from "./groupService";
+import { adminService } from "./adminService";
+
+export interface StudentPaymentStatusItem {
+  studentId: string;
+  studentName: string;
+  studentPhone?: string;
+  groupId: string;
+  groupName: string;
+  teacherId: string;
+  teacherName: string;
+  month: string;
+  monthlyFee: number;
+  paidAmount: number;
+  debtAmount: number;
+  status: "PAID" | "PARTIAL" | "DEBT";
+  lastPaymentDate?: string;
+  receiptNumber?: string;
+  paymentId?: string;
+}
 
 export interface FinancialSummary {
   totalRevenue: number;
@@ -36,6 +55,11 @@ export interface FinancialSummary {
   debtorsCount: number;
   monthlyRevenueHistory: { month: string; amount: number }[];
   monthlyExpenseHistory: { month: string; amount: number }[];
+  totalTreasuryBalance?: number;
+  allTimeRevenue?: number;
+  allTimeExpenses?: number;
+  allTimeSalariesPaid?: number;
+  expensesByCategory?: Record<string, number>;
 }
 
 const PAYMENTS_CACHE_KEY = "fm_payments_cache";
@@ -817,15 +841,16 @@ export const financeService = {
     const nonMonth = cached.filter((s) => s.month !== month);
     const updatedAll = [...calculatedList, ...nonMonth];
     saveLocal(SALARIES_CACHE_KEY, updatedAll);
-    await syncSystemFinanceToCloud({ teacher_salaries: updatedAll });
+    salariesMemCache = { data: updatedAll, time: Date.now() };
+    syncSystemFinanceToCloud({ teacher_salaries: updatedAll });
 
-    // Also persist in Firestore collection
-    for (const docData of calculatedList) {
-      try {
+    // Persist in Firestore collection asynchronously without blocking UI
+    Promise.allSettled(
+      calculatedList.map((docData) => {
         const salRef = doc(db, "teacher_salaries", docData.salaryId);
-        await setDoc(salRef, { ...docData, updatedAt: serverTimestamp() }, { merge: true });
-      } catch {}
-    }
+        return setDoc(salRef, { ...docData, updatedAt: serverTimestamp() }, { merge: true });
+      })
+    ).catch(() => {});
 
     return calculatedList;
   },
@@ -929,85 +954,296 @@ export const financeService = {
     return updatedSal;
   },
 
+  // =================== STUDENT PAYMENT & DEBT STATUS BY MONTH ===================
+  async getStudentPaymentStatusByMonth(
+    month: string,
+    teacherId?: string
+  ): Promise<{
+    items: StudentPaymentStatusItem[];
+    totalPaidCount: number;
+    totalDebtorsCount: number;
+    totalPaidAmount: number;
+    totalDebtAmount: number;
+  }> {
+    try {
+      const [payments, allGroups, allUsers] = await Promise.all([
+        this.getPayments({ month }).catch(() => []),
+        groupService.getGroups().catch(() => []),
+        adminService.getAllUsers("", "all", 300).catch(() => []),
+      ]);
+
+      const groups = allGroups.filter((g) => g.status === "active" || !g.status);
+      const groupMap = new Map<string, Group>(groups.map((g) => [g.groupId, g]));
+
+      const teacherMap = new Map<string, string>();
+      allUsers
+        .filter((u) => u.role === "teacher")
+        .forEach((t) => teacherMap.set(t.uid, t.displayName || "Ustoz"));
+
+      const students = allUsers.filter(
+        (u) => u.role === "student" || u.role === "user" || !u.role
+      );
+      const studentMap = new Map<string, UserProfile>(students.map((s) => [s.uid, s]));
+
+      const items: StudentPaymentStatusItem[] = [];
+      const handledKeySet = new Set<string>();
+
+      // 1. Scan active groups and their enrolled students
+      for (const group of groups) {
+        const gTeacherId = group.teacherId || "";
+        const gTeacherName = group.teacherName || teacherMap.get(gTeacherId) || "Ustoz";
+        const monthlyFee = Number(group.monthlyPrice) || 500000;
+
+        // Students in this group
+        const enrolledStudentIds = new Set<string>();
+        if (Array.isArray(group.studentIds)) {
+          group.studentIds.forEach((id) => enrolledStudentIds.add(id));
+        }
+
+        // Also check students who have enrolledGroups matching this group
+        students.forEach((st) => {
+          if (
+            Array.isArray(st.enrolledGroups) &&
+            st.enrolledGroups.some((eg) => eg && eg.groupId === group.groupId)
+          ) {
+            enrolledStudentIds.add(st.uid);
+          }
+        });
+
+        for (const stId of enrolledStudentIds) {
+          const student = studentMap.get(stId);
+          const studentName = student?.displayName || "O'quvchi";
+          const studentPhone = student?.phoneNumber || "";
+
+          // Payments for this student and this group in this month
+          const studentGroupPayments = payments.filter(
+            (p) =>
+              p.studentId === stId &&
+              (p.groupId === group.groupId || !p.groupId) &&
+              p.status === "PAID" &&
+              Number(p.amount) > 0
+          );
+
+          const paidAmount = studentGroupPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+          const debtAmount = Math.max(0, monthlyFee - paidAmount);
+          const status: "PAID" | "PARTIAL" | "DEBT" =
+            debtAmount === 0 ? "PAID" : paidAmount > 0 ? "PARTIAL" : "DEBT";
+
+          const lastPayment = studentGroupPayments[0];
+
+          const key = `${stId}_${group.groupId}`;
+          handledKeySet.add(key);
+
+          items.push({
+            studentId: stId,
+            studentName,
+            studentPhone,
+            groupId: group.groupId,
+            groupName: group.name,
+            teacherId: gTeacherId,
+            teacherName: gTeacherName,
+            month,
+            monthlyFee,
+            paidAmount,
+            debtAmount,
+            status,
+            lastPaymentDate: lastPayment?.paymentDate,
+            receiptNumber: lastPayment?.receiptNumber,
+            paymentId: lastPayment?.paymentId,
+          });
+        }
+      }
+
+      // 2. Also check any payments made in this month that were not in the above groups
+      for (const p of payments) {
+        if (!p.studentId) continue;
+        const key = `${p.studentId}_${p.groupId || "default"}`;
+        if (!handledKeySet.has(key)) {
+          handledKeySet.add(key);
+          const student = studentMap.get(p.studentId);
+          const group = p.groupId ? groupMap.get(p.groupId) : null;
+          const gTeacherId = group?.teacherId || "";
+          const gTeacherName = group?.teacherName || teacherMap.get(gTeacherId) || "Ustoz";
+          const paidAmt = p.status === "PAID" ? Number(p.amount || 0) : 0;
+          const isDebt = p.status === "DEBT" || p.status === "PARTIAL";
+
+          items.push({
+            studentId: p.studentId,
+            studentName: p.studentName || student?.displayName || "O'quvchi",
+            studentPhone: student?.phoneNumber || "",
+            groupId: p.groupId || "",
+            groupName: p.groupName || group?.name || "O'quv kursi",
+            teacherId: gTeacherId,
+            teacherName: gTeacherName,
+            month,
+            monthlyFee: Number(p.amount || 500000),
+            paidAmount: paidAmt,
+            debtAmount: isDebt ? Number(p.amount || 0) : Math.max(0, Number(p.amount || 500000) - paidAmt),
+            status: p.status === "PAID" ? "PAID" : p.status === "PARTIAL" ? "PARTIAL" : "DEBT",
+            lastPaymentDate: p.paymentDate,
+            receiptNumber: p.receiptNumber,
+            paymentId: p.paymentId,
+          });
+        }
+      }
+
+      // Filter by teacherId if requested
+      let filteredItems = items;
+      if (teacherId && teacherId !== "all") {
+        filteredItems = filteredItems.filter((item) => item.teacherId === teacherId);
+      }
+
+      const totalPaidCount = filteredItems.filter((i) => i.status === "PAID").length;
+      const totalDebtorsCount = filteredItems.filter((i) => i.status === "DEBT" || i.status === "PARTIAL").length;
+      const totalPaidAmount = filteredItems.reduce((sum, i) => sum + i.paidAmount, 0);
+      const totalDebtAmount = filteredItems.reduce((sum, i) => sum + i.debtAmount, 0);
+
+      return {
+        items: filteredItems,
+        totalPaidCount,
+        totalDebtorsCount,
+        totalPaidAmount,
+        totalDebtAmount,
+      };
+    } catch (err: any) {
+      console.warn("getStudentPaymentStatusByMonth error:", err?.message);
+      return {
+        items: [],
+        totalPaidCount: 0,
+        totalDebtorsCount: 0,
+        totalPaidAmount: 0,
+        totalDebtAmount: 0,
+      };
+    }
+  },
+
   // =================== FINANCIAL SUMMARY (Boshqaruv Hisoboti) ===================
   async getFinancialSummary(selectedMonth?: string): Promise<FinancialSummary> {
-    const month = selectedMonth || new Date().toISOString().slice(0, 7);
+    const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const month = selectedMonth || currentYearMonth;
 
-    // Auto-recalculate salaries first to ensure summary reflects latest real payments
     try {
-      await this.autoRecalculateMonthSalaries(month);
-    } catch {}
+      // Auto-recalculate salaries softly in background without holding up immediate summary
+      this.autoRecalculateMonthSalaries(month).catch(() => {});
 
-    const [payments, expenses, salaries] = await Promise.all([
-      this.getPayments(),
-      this.getExpenses(),
-      this.getTeacherSalaries(),
-    ]);
+      const [payments, expenses, salaries, studentDebtStats] = await Promise.all([
+        this.getPayments().catch(() => []),
+        this.getExpenses().catch(() => []),
+        this.getTeacherSalaries().catch(() => []),
+        this.getStudentPaymentStatusByMonth(month).catch(() => ({
+          items: [],
+          totalPaidCount: 0,
+          totalDebtorsCount: 0,
+          totalPaidAmount: 0,
+          totalDebtAmount: 0,
+        })),
+      ]);
 
-    // Current month payments - ONLY collected payments (status === "PAID" and amount > 0)
-    const monthPayments = payments.filter((p) => {
-      const pMonth = p.month ? p.month.slice(0, 7) : p.paymentDate?.slice(0, 7);
-      return pMonth === month && p.status === "PAID" && Number(p.amount) > 0;
-    });
+      // Current month payments - ONLY collected payments (status === "PAID" and amount > 0)
+      const monthPayments = payments.filter((p) => {
+        const pMonth = p.month ? p.month.slice(0, 7) : p.paymentDate?.slice(0, 7);
+        return pMonth === month && p.status === "PAID" && Number(p.amount) > 0;
+      });
 
-    // Current month operational expenses (excluding category "salary" to prevent double deduction)
-    const monthExpenses = expenses.filter((e) => e.date?.startsWith(month));
-    const operationalExpenses = monthExpenses
-      .filter((e) => e.category !== "salary")
-      .reduce((acc, e) => acc + Number(e.amount), 0);
+      // Current month operational expenses (excluding category "salary" to prevent double deduction)
+      const monthExpenses = expenses.filter((e) => e.date?.startsWith(month));
+      const operationalExpenses = monthExpenses
+        .filter((e) => e.category !== "salary")
+        .reduce((acc, e) => acc + Number(e.amount), 0);
 
-    // Current month salaries
-    const monthSalaries = salaries.filter((s) => s.month === month);
-    const totalSalariesCalculated = monthSalaries.reduce((acc, s) => acc + (s.calculatedSalary || 0), 0);
-    const totalSalariesPaid = monthSalaries.reduce((acc, s) => acc + (s.paidSalary || 0), 0);
-    const totalSalariesRemaining = monthSalaries.reduce((acc, s) => acc + (s.remainingSalary || 0), 0);
+      // Current month salaries (strictly for this month)
+      const monthSalaries = salaries.filter((s) => s.month === month);
+      const totalSalariesCalculated = monthSalaries.reduce((acc, s) => acc + (s.calculatedSalary || 0), 0);
+      const totalSalariesPaid = monthSalaries.reduce((acc, s) => acc + (s.paidSalary || 0), 0);
+      const totalSalariesRemaining = monthSalaries.reduce((acc, s) => acc + (s.remainingSalary || 0), 0);
 
-    const totalRevenue = monthPayments.reduce((acc, p) => acc + Number(p.amount), 0);
-    const totalExpenses = operationalExpenses;
-    // Net cash income = Revenue - (Operational Expenses + Actual Salaries Paid)
-    const netIncome = totalRevenue - (totalExpenses + totalSalariesPaid);
+      const totalRevenue = monthPayments.reduce((acc, p) => acc + Number(p.amount), 0);
+      const totalExpenses = operationalExpenses;
+      // Net cash income for selected month = Revenue - (Operational Expenses + Actual Salaries Paid)
+      const netIncome = totalRevenue - (totalExpenses + totalSalariesPaid);
 
-    // Debtors (DEBT status and unpaid portions)
-    const debtPayments = payments.filter((p) => {
-      const pMonth = p.month ? p.month.slice(0, 7) : p.paymentDate?.slice(0, 7);
-      return pMonth === month && (p.status === "DEBT" || p.status === "PARTIAL");
-    });
-    const totalDebtsAmount = debtPayments.reduce((acc, p) => acc + Number(p.amount), 0);
-    const debtorsCount = debtPayments.length;
+      // Selected month strictly isolated treasury balance = Net cash balance for that month!
+      const totalTreasuryBalance = netIncome;
 
-    // Monthly history (last 6 months)
-    const monthlyRevenueHistory: { month: string; amount: number }[] = [];
-    const monthlyExpenseHistory: { month: string; amount: number }[] = [];
-
-    const d = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const pastDate = new Date(d.getFullYear(), d.getMonth() - i, 1);
-      const mStr = pastDate.toISOString().slice(0, 7);
-      const rev = payments
-        .filter((p) => {
-          const pMonth = p.month ? p.month.slice(0, 7) : p.paymentDate?.slice(0, 7);
-          return pMonth === mStr && p.status === "PAID" && Number(p.amount) > 0;
-        })
+      // All-time totals for reference
+      const allTimeRevenue = payments
+        .filter((p) => p.status === "PAID" && Number(p.amount) > 0)
         .reduce((sum, p) => sum + Number(p.amount), 0);
-      const exp = expenses
-        .filter((e) => e.date?.startsWith(mStr) && e.category !== "salary")
+      const allTimeOperationalExpenses = expenses
+        .filter((e) => e.category !== "salary")
         .reduce((sum, e) => sum + Number(e.amount), 0);
+      const allTimeSalariesPaid = salaries.reduce((sum, s) => sum + (s.paidSalary || 0), 0);
+      const allTimeExpenses = allTimeOperationalExpenses + allTimeSalariesPaid;
 
-      monthlyRevenueHistory.push({ month: mStr, amount: rev });
-      monthlyExpenseHistory.push({ month: mStr, amount: exp });
+      // Expenses by category for selected month
+      const expensesByCategory: Record<string, number> = {};
+      monthExpenses.forEach((e) => {
+        const cat = e.category || "other";
+        expensesByCategory[cat] = (expensesByCategory[cat] || 0) + Number(e.amount);
+      });
+
+      // Debtors: strictly for the selected month!
+      const totalDebtsAmount = studentDebtStats.totalDebtAmount;
+      const debtorsCount = studentDebtStats.totalDebtorsCount;
+
+      // Monthly history (last 6 months) using local calendar to prevent UTC day rollback
+      const monthlyRevenueHistory: { month: string; amount: number }[] = [];
+      const monthlyExpenseHistory: { month: string; amount: number }[] = [];
+
+      for (let i = 5; i >= 0; i--) {
+        const pastDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const mStr = `${pastDate.getFullYear()}-${String(pastDate.getMonth() + 1).padStart(2, "0")}`;
+        const rev = payments
+          .filter((p) => {
+            const pMonth = p.month ? p.month.slice(0, 7) : p.paymentDate?.slice(0, 7);
+            return pMonth === mStr && p.status === "PAID" && Number(p.amount) > 0;
+          })
+          .reduce((sum, p) => sum + Number(p.amount), 0);
+        const exp = expenses
+          .filter((e) => e.date?.startsWith(mStr) && e.category !== "salary")
+          .reduce((sum, e) => sum + Number(e.amount), 0);
+
+        monthlyRevenueHistory.push({ month: mStr, amount: rev });
+        monthlyExpenseHistory.push({ month: mStr, amount: exp });
+      }
+
+      return {
+        totalRevenue,
+        totalExpenses,
+        totalSalaries: totalSalariesCalculated,
+        totalSalariesPaid,
+        totalSalariesRemaining,
+        netIncome,
+        totalDebtsAmount,
+        debtorsCount,
+        monthlyRevenueHistory,
+        monthlyExpenseHistory,
+        totalTreasuryBalance,
+        allTimeRevenue,
+        allTimeExpenses,
+        allTimeSalariesPaid,
+        expensesByCategory,
+      };
+    } catch (err: any) {
+      console.warn("getFinancialSummary error:", err?.message);
+      return {
+        totalRevenue: 0,
+        totalExpenses: 0,
+        totalSalaries: 0,
+        totalSalariesPaid: 0,
+        totalSalariesRemaining: 0,
+        netIncome: 0,
+        totalDebtsAmount: 0,
+        debtorsCount: 0,
+        monthlyRevenueHistory: [],
+        monthlyExpenseHistory: [],
+        totalTreasuryBalance: 0,
+        allTimeRevenue: 0,
+        allTimeExpenses: 0,
+        allTimeSalariesPaid: 0,
+        expensesByCategory: {},
+      };
     }
-
-    return {
-      totalRevenue,
-      totalExpenses,
-      totalSalaries: totalSalariesCalculated,
-      totalSalariesPaid,
-      totalSalariesRemaining,
-      netIncome,
-      totalDebtsAmount,
-      debtorsCount,
-      monthlyRevenueHistory,
-      monthlyExpenseHistory,
-    };
   },
 };

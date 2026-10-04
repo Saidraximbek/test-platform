@@ -19,6 +19,7 @@ import {
   ArrowRight,
   Award,
   DoorOpen,
+  DollarSign,
 } from "lucide-react";
 import { ProfileUpdateSchema } from "../../schemas";
 import { useAuth } from "../../context/AuthContext";
@@ -27,7 +28,7 @@ import { storageService } from "../../services/storageService";
 import { groupService } from "../../services/groupService";
 import { attendanceService, StudentAttendanceSummary } from "../../services/attendanceService";
 import { financeService } from "../../services/financeService";
-import { Group } from "../../types";
+import { Group, TeacherSalary } from "../../types";
 import { Card } from "../../components/common/Card";
 import { Input } from "../../components/common/Input";
 import { Button } from "../../components/common/Button";
@@ -50,6 +51,7 @@ export const ProfilePage: React.FC = () => {
     nextPaymentDate: string;
     hasDebt: boolean;
   } | null>(null);
+  const [teacherSalary, setTeacherSalary] = useState<TeacherSalary | null>(null);
 
   useEffect(() => {
     const loadStudentLMSData = async () => {
@@ -86,6 +88,17 @@ export const ProfilePage: React.FC = () => {
               updatedAt: new Date().toISOString(),
             }));
           }
+        }
+
+        if (user.role === "teacher") {
+          const currentMonth = new Date().toISOString().slice(0, 7);
+          const salaries = await financeService.getTeacherSalaries({
+            teacherId: user.uid,
+            month: currentMonth,
+          }).catch(() => []);
+          if (salaries.length > 0) setTeacherSalary(salaries[0]);
+          const tGroups = await groupService.getTeacherGroups(user.uid).catch(() => []);
+          if (tGroups.length > 0) finalGroups = tGroups;
         }
 
         setStudentGroups(finalGroups);
@@ -284,49 +297,107 @@ export const ProfilePage: React.FC = () => {
       {/* LMS Section: Attendance, Tuition & Groups */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
         {/* Tuition Fee Status */}
-        <Card className="p-5 flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-emerald-500" /> To'lov Holati
-              </h4>
-              <span
-                className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
-                  debtStatus?.hasDebt
-                    ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
-                    : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                }`}
-              >
-                {debtStatus?.hasDebt ? "Qarzdorlik bor" : "To'langan"}
-              </span>
-            </div>
-
-            <div className="space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Shu oy to'langan:</span>
-                <span className="font-bold text-slate-900 dark:text-white">
-                  {formatNumber(debtStatus?.paidAmount || 0)} UZS
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Qarz:</span>
+        {/* Tuition Fee Status for Student OR Teacher Salary for Teacher */}
+        {user?.role === "teacher" ? (
+          <Card className="p-5 flex flex-col justify-between bg-gradient-to-br from-sky-950/20 to-slate-900 border-sky-500/30">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  <DollarSign className="w-4 h-4 text-sky-400" /> Mening Oyligim
+                </h4>
                 <span
-                  className={`font-bold ${
-                    debtStatus?.hasDebt ? "text-rose-500" : "text-emerald-500"
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                    teacherSalary?.status === "PAID"
+                      ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                      : teacherSalary?.status === "APPROVED"
+                      ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                      : "bg-amber-500/10 text-amber-400 border-amber-500/20"
                   }`}
                 >
-                  {formatNumber(debtStatus?.debtAmount || 0)} UZS
+                  {teacherSalary?.status === "PAID"
+                    ? "To'langan"
+                    : teacherSalary?.status === "APPROVED"
+                    ? "Tasdiqlangan"
+                    : "Hisoblanmoqda"}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Keyingi to'lov:</span>
-                <span className="font-medium text-slate-700 dark:text-slate-300">
-                  {debtStatus?.nextPaymentDate || "5-oktabr"}
-                </span>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Shu oy hisoblangan:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {formatNumber(teacherSalary?.calculatedSalary || 0)} UZS
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">To'langan summa:</span>
+                  <span className="font-bold text-emerald-500">
+                    {formatNumber(teacherSalary?.paidSalary || 0)} UZS
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Qoldiq maosh:</span>
+                  <span className="font-bold text-amber-500">
+                    {formatNumber(teacherSalary?.remainingSalary || 0)} UZS
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 mt-3">
+              <Link
+                to="/teacher/salary"
+                className="text-[11px] font-bold text-sky-500 hover:text-sky-600 dark:text-sky-400 dark:hover:text-sky-300 flex items-center gap-1"
+              >
+                Batafsil maosh hisoboti va tarixi <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+          </Card>
+        ) : (
+          <Card className="p-5 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-emerald-500" /> To'lov Holati
+                </h4>
+                <span
+                  className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                    debtStatus?.hasDebt
+                      ? "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                      : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                  }`}
+                >
+                  {debtStatus?.hasDebt ? "Qarzdorlik bor" : "To'langan"}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Shu oy to'langan:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">
+                    {formatNumber(debtStatus?.paidAmount || 0)} UZS
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Qarz:</span>
+                  <span
+                    className={`font-bold ${
+                      debtStatus?.hasDebt ? "text-rose-500" : "text-emerald-500"
+                    }`}
+                  >
+                    {formatNumber(debtStatus?.debtAmount || 0)} UZS
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500">Keyingi to'lov:</span>
+                  <span className="font-medium text-slate-700 dark:text-slate-300">
+                    {debtStatus?.nextPaymentDate || "5-oktabr"}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* Attendance Summary */}
         <Card className="p-5 flex flex-col justify-between">

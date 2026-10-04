@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   Award,
+  DollarSign,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { sound } from "../../utils/soundEffects";
@@ -26,6 +27,7 @@ export const TeacherLayout: React.FC = () => {
 
   const menuItems = [
     { name: "Ko'rsatkichlar Paneli", href: "/teacher", icon: LayoutDashboard },
+    { name: "Mening Oyligim", href: "/teacher/salary", icon: DollarSign },
     { name: "Bugungi Darslar", href: "/teacher/today", icon: Calendar },
     { name: "Guruhlarim", href: "/teacher/groups", icon: Users },
     { name: "O'quvchilarim", href: "/teacher/students", icon: UserCheck },

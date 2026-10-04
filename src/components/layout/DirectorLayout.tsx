@@ -14,6 +14,7 @@ import {
   Menu,
   X,
   PieChart,
+  CreditCard,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -37,6 +38,7 @@ export const DirectorLayout: React.FC = () => {
     {
       label: "MOLIYA VA MAOSHLAR",
       items: [
+        { name: "O'quvchilar To'lovlari", href: "/admin/payments", icon: CreditCard },
         { name: "O'qituvchilar Maoshi", href: "/director/salaries", icon: DollarSign },
         { name: "Markaz Xarajatlari", href: "/director/expenses", icon: Receipt },
       ],
@@ -52,6 +54,7 @@ export const DirectorLayout: React.FC = () => {
     {
       label: "SOZLAMALAR VA NAZORAT",
       items: [
+        { name: "Foydalanuvchilar & Rollar", href: "/director/users", icon: Users },
         { name: "Platforma Qoidalari", href: "/director/settings", icon: Settings },
         { name: "Admin Boshqaruvi", href: "/admin", icon: Shield },
       ],
@@ -61,10 +64,10 @@ export const DirectorLayout: React.FC = () => {
   // Mobile Bottom Navigation Bar (Primary executive quick taps)
   const mobileNavItems = [
     { name: "Asosiy", href: "/director", icon: LayoutDashboard },
+    { name: "Balans", href: "/director/finance", icon: TrendingUp },
     { name: "Maoshlar", href: "/director/salaries", icon: DollarSign },
     { name: "Xarajatlar", href: "/director/expenses", icon: Receipt },
     { name: "Analitika", href: "/director/analytics", icon: PieChart },
-    { name: "Sozlamalar", href: "/director/settings", icon: Settings },
   ];
 
   const isActive = (path: string) =>

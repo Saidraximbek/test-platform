@@ -16,6 +16,7 @@ import {
   Sparkles,
   PieChart,
   Clock,
+  RefreshCw,
 } from "lucide-react";
 import { financeService, FinancialSummary } from "../../services/financeService";
 import { lmsAnalyticsService, LMSAnalytics } from "../../services/lmsAnalyticsService";
@@ -24,39 +25,52 @@ import { Button } from "../../components/common/Button";
 import { Spinner } from "../../components/common/Spinner";
 import { formatNumber } from "../../utils";
 
+const getCurrentMonth = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+};
+
 export const DirectorDashboardPage: React.FC = () => {
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [analytics, setAnalytics] = useState<LMSAnalytics | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadData = async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setLoadError(null);
+
+      const [fin, lms] = await Promise.all([
+        financeService.getFinancialSummary(selectedMonth),
+        lmsAnalyticsService.getOverview(),
+      ]);
+      setSummary(fin);
+      setAnalytics(lms);
+    } catch (err: any) {
+      console.error("Error loading director dashboard:", err);
+      setLoadError(err?.message || "Ma'lumotlarni yuklashda xatolik yuz berdi");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const [fin, lms] = await Promise.all([
-          financeService.getFinancialSummary(selectedMonth),
-          lmsAnalyticsService.getOverview(),
-        ]);
-        setSummary(fin);
-        setAnalytics(lms);
-      } catch (err) {
-        console.error("Error loading director dashboard:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     loadData();
-    const handleSync = () => loadData();
+    const handleSync = () => loadData(true);
     window.addEventListener("finance_updated", handleSync);
     return () => window.removeEventListener("finance_updated", handleSync);
   }, [selectedMonth]);
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-28">
+      <div className="flex flex-col justify-center items-center py-28 gap-3">
         <Spinner size="lg" className="text-amber-500" />
+        <p className="text-xs text-slate-400 font-medium">Boshqaruv ma'lumotlari yuklanmoqda...</p>
       </div>
     );
   }
@@ -66,7 +80,7 @@ export const DirectorDashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Month Selector Bar */}
+      {/* Month Selector & Controls Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
@@ -77,16 +91,67 @@ export const DirectorDashboardPage: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 bg-slate-900 border border-amber-500/20 px-3 py-1.5 rounded-xl">
-          <Calendar className="w-4 h-4 text-amber-400" />
-          <span className="text-xs text-slate-400 font-semibold">Tahlil oyi:</span>
-          <input
-            type="month"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer"
-          />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 bg-slate-900 border border-amber-500/20 px-3 py-1.5 rounded-xl">
+            <Calendar className="w-4 h-4 text-amber-400" />
+            <span className="text-xs text-slate-400 font-semibold">Tahlil oyi:</span>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-transparent text-xs text-white font-bold focus:outline-none cursor-pointer"
+            />
+          </div>
+
+          <button
+            onClick={() => loadData(true)}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-900 border border-amber-500/30 text-amber-400 hover:text-white hover:bg-slate-800 rounded-xl text-xs font-bold transition-all disabled:opacity-50"
+            title="Yangilash"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin text-amber-300" : ""}`} />
+            <span className="hidden sm:inline">Yangilash</span>
+          </button>
         </div>
+      </div>
+
+      {loadError && (
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300 flex items-center justify-between">
+          <span>{loadError}</span>
+          <button
+            onClick={() => loadData()}
+            className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 rounded-lg font-bold"
+          >
+            Qayta urinish
+          </button>
+        </div>
+      )}
+
+      {/* Top Treasury Banner */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-slate-900/90 to-yellow-500/10 border border-amber-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-400 text-slate-950 flex items-center justify-center font-black text-xl shadow-lg">
+            💰
+          </div>
+          <div>
+            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider block">
+              Markaz Real Kassa Qoldig'i (Barcha davr balansi)
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl sm:text-3xl font-black text-white">
+                {formatNumber(summary?.totalTreasuryBalance || 0)}
+              </span>
+              <span className="text-xs font-bold text-amber-400">UZS</span>
+            </div>
+          </div>
+        </div>
+        <Link
+          to="/director/finance"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all shadow-md hover:shadow-amber-500/20"
+        >
+          <span>Moliyaviy Balans & Kassa Tahlili</span>
+          <ArrowUpRight className="w-4 h-4" />
+        </Link>
       </div>
 
       {/* Primary Financial Overview Grid */}
@@ -166,28 +231,30 @@ export const DirectorDashboardPage: React.FC = () => {
         </Link>
 
         {/* Net Income (Sof Foyda) */}
-        <Card
-          className={`p-5 bg-slate-900/90 border-2 flex flex-col justify-between ${
-            isProfitable ? "border-amber-500/40 shadow-lg shadow-amber-500/10" : "border-rose-500/50"
-          }`}
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
-              Sof Foyda (Kassa)
-            </span>
-            <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400">
-              <TrendingUp className="w-5 h-5" />
+        <Link to="/director/finance" className="block group">
+          <Card
+            className={`p-5 bg-slate-900/90 border-2 flex flex-col justify-between h-full transition-all group-hover:border-amber-400 ${
+              isProfitable ? "border-amber-500/40 shadow-lg shadow-amber-500/10" : "border-rose-500/50"
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black text-amber-400 uppercase tracking-wider">
+                Sof Foyda (Kassa)
+              </span>
+              <div className="p-2 rounded-xl bg-amber-500/15 text-amber-400 group-hover:scale-110 transition-transform">
+                <TrendingUp className="w-5 h-5" />
+              </div>
             </div>
-          </div>
-          <div className="mt-3">
-            <h3 className={`text-2xl font-black ${isProfitable ? "text-amber-400" : "text-rose-400"}`}>
-              {formatNumber(netIncome)} <span className="text-xs font-bold">UZS</span>
-            </h3>
-            <span className="text-[11px] text-slate-400 font-medium flex items-center gap-1 mt-1">
-              Tushum - (Xarajat + To'langan Maosh)
-            </span>
-          </div>
-        </Card>
+            <div className="mt-3">
+              <h3 className={`text-2xl font-black ${isProfitable ? "text-amber-400" : "text-rose-400"}`}>
+                {formatNumber(netIncome)} <span className="text-xs font-bold">UZS</span>
+              </h3>
+              <span className="text-[11px] text-amber-400/90 font-medium flex items-center gap-1 mt-1">
+                <ArrowUpRight className="w-3.5 h-3.5" /> Moliyaviy balansga o'tish →
+              </span>
+            </div>
+          </Card>
+        </Link>
       </div>
 
       {/* Operational Stats: Students, Groups, Teachers, Debts */}
@@ -255,43 +322,47 @@ export const DirectorDashboardPage: React.FC = () => {
           </div>
 
           <div className="space-y-4">
-            {summary?.monthlyRevenueHistory.map((item, idx) => {
-              const expItem = summary.monthlyExpenseHistory[idx];
-              const maxVal = Math.max(
-                ...summary.monthlyRevenueHistory.map((h) => h.amount),
-                1000000
-              );
-              const revPercent = Math.min(100, Math.round((item.amount / maxVal) * 100));
-              const expPercent = Math.min(100, Math.round(((expItem?.amount || 0) / maxVal) * 100));
+            {(!summary?.monthlyRevenueHistory || summary.monthlyRevenueHistory.length === 0) ? (
+              <div className="py-8 text-center text-xs text-slate-500">Moliyaviy ma'lumotlar mavjud emas</div>
+            ) : (
+              summary.monthlyRevenueHistory.map((item, idx) => {
+                const expItem = summary.monthlyExpenseHistory?.[idx];
+                const maxVal = Math.max(
+                  ...(summary.monthlyRevenueHistory || []).map((h) => h.amount),
+                  1000000
+                );
+                const revPercent = Math.min(100, Math.round((item.amount / maxVal) * 100));
+                const expPercent = Math.min(100, Math.round(((expItem?.amount || 0) / maxVal) * 100));
 
-              return (
-                <div key={item.month} className="space-y-1.5 text-xs">
-                  <div className="flex justify-between font-bold">
-                    <span className="text-slate-300">{item.month}</span>
-                    <span className="text-emerald-400">
-                      Tushum: {formatNumber(item.amount)} UZS
-                    </span>
-                  </div>
+                return (
+                  <div key={item.month} className="space-y-1.5 text-xs">
+                    <div className="flex justify-between font-bold">
+                      <span className="text-slate-300">{item.month}</span>
+                      <span className="text-emerald-400">
+                        Tushum: {formatNumber(item.amount)} UZS
+                      </span>
+                    </div>
 
-                  {/* Revenue Bar */}
-                  <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden flex gap-1">
-                    <div
-                      className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.max(5, revPercent)}%` }}
-                    />
-                  </div>
+                    {/* Revenue Bar */}
+                    <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden flex gap-1">
+                      <div
+                        className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(5, revPercent)}%` }}
+                      />
+                    </div>
 
-                  {/* Expense Bar */}
-                  <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden flex gap-1">
-                    <div
-                      className="h-full bg-rose-500 rounded-full transition-all duration-500"
-                      style={{ width: `${Math.max(3, expPercent)}%` }}
-                      title={`Xarajat: ${formatNumber(expItem?.amount || 0)} UZS`}
-                    />
+                    {/* Expense Bar */}
+                    <div className="w-full h-1.5 bg-slate-800/60 rounded-full overflow-hidden flex gap-1">
+                      <div
+                        className="h-full bg-rose-500 rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(3, expPercent)}%` }}
+                        title={`Xarajat: ${formatNumber(expItem?.amount || 0)} UZS`}
+                      />
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
 
           <div className="flex items-center gap-6 mt-6 pt-4 border-t border-slate-800 text-xs">
@@ -361,7 +432,19 @@ export const DirectorDashboardPage: React.FC = () => {
       </div>
 
       {/* Quick Action Navigation */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Link to="/director/finance">
+          <Card className="p-4 bg-slate-900/60 border-slate-800 hover:border-emerald-500/40 transition-all flex items-center justify-between group">
+            <div>
+              <h4 className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors">
+                Moliyaviy Balans & Kassa
+              </h4>
+              <p className="text-xs text-slate-400 mt-0.5">Kassa qoldig'i, daromad-chiqim kesh-oqimi</p>
+            </div>
+            <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
+          </Card>
+        </Link>
+
         <Link to="/director/salaries">
           <Card className="p-4 bg-slate-900/60 border-slate-800 hover:border-amber-500/40 transition-all flex items-center justify-between group">
             <div>
@@ -375,26 +458,26 @@ export const DirectorDashboardPage: React.FC = () => {
         </Link>
 
         <Link to="/director/expenses">
-          <Card className="p-4 bg-slate-900/60 border-slate-800 hover:border-amber-500/40 transition-all flex items-center justify-between group">
+          <Card className="p-4 bg-slate-900/60 border-slate-800 hover:border-rose-500/40 transition-all flex items-center justify-between group">
             <div>
-              <h4 className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors">
+              <h4 className="font-bold text-sm text-white group-hover:text-rose-400 transition-colors">
                 Xarajatlar Hisoboti
               </h4>
               <p className="text-xs text-slate-400 mt-0.5">Kategoriya bo'yicha operatsion xarajatlar</p>
             </div>
-            <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+            <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-rose-400 group-hover:translate-x-0.5 transition-transform" />
           </Card>
         </Link>
 
         <Link to="/director/analytics">
-          <Card className="p-4 bg-slate-900/60 border-slate-800 hover:border-amber-500/40 transition-all flex items-center justify-between group">
+          <Card className="p-4 bg-slate-900/60 border-slate-800 hover:border-indigo-500/40 transition-all flex items-center justify-between group">
             <div>
-              <h4 className="font-bold text-sm text-white group-hover:text-amber-400 transition-colors">
+              <h4 className="font-bold text-sm text-white group-hover:text-indigo-400 transition-colors">
                 To'liq Analitika & Tahlil
               </h4>
               <p className="text-xs text-slate-400 mt-0.5">O'quvchilar o'sishi va LMS statistikasi</p>
             </div>
-            <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-transform" />
+            <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-0.5 transition-transform" />
           </Card>
         </Link>
       </div>
