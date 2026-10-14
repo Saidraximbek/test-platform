@@ -129,13 +129,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } else {
             setUser(userDoc);
-            if (userDoc.role === "director") {
-              setIsDirector(true);
-              setIsAdmin(true);
-            } else if (userDoc.role === "admin") {
-              setIsAdmin(true);
-            } else if (userDoc.role === "teacher") {
-              setIsTeacher(true);
+            const isAccountRestricted = userDoc.status === "blocked" || userDoc.status === "suspended";
+            if (isAccountRestricted) {
+              setIsDirector(false);
+              setIsAdmin(false);
+              setIsTeacher(false);
+            } else {
+              if (userDoc.role === "director") {
+                setIsDirector(true);
+                setIsAdmin(true);
+              } else if (userDoc.role === "admin") {
+                setIsAdmin(true);
+              } else if (userDoc.role === "teacher") {
+                setIsTeacher(true);
+              } else {
+                setIsDirector(false);
+                setIsAdmin(false);
+                setIsTeacher(false);
+              }
             }
           }
           setLoading(false);
@@ -160,16 +171,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null);
     try {
       const fUser = await authService.login(email, pass);
+      const userProfile = await authService.getUserDoc(fUser.uid);
+      if (userProfile && (userProfile.status === "blocked" || userProfile.status === "suspended")) {
+        await authService.logout();
+        const errMessage =
+          userProfile.status === "blocked"
+            ? "Ushbu hisob qoidabuzarlik sababli bloklangan."
+            : "Ushbu hisob faoliyati vaqtincha to'xtatilgan.";
+        throw new Error(errMessage);
+      }
+
       setFirebaseUser(fUser);
+      setUser(userProfile);
+
       const tokenResult = await fUser.getIdTokenResult();
       const claims = tokenResult.claims;
       const claimDirector = claims.role === "director";
       const claimAdmin = claims.admin === true || claims.role === "admin" || claimDirector;
       const claimTeacher = claims.role === "teacher";
 
-      if (claimDirector) setIsDirector(true);
-      if (claimAdmin) setIsAdmin(true);
-      if (claimTeacher) setIsTeacher(true);
+      if (userProfile?.status !== "blocked" && userProfile?.status !== "suspended") {
+        if (claimDirector || userProfile?.role === "director") {
+          setIsDirector(true);
+          setIsAdmin(true);
+        } else if (claimAdmin || userProfile?.role === "admin") {
+          setIsAdmin(true);
+        } else if (claimTeacher || userProfile?.role === "teacher") {
+          setIsTeacher(true);
+        }
+      }
     } catch (err: any) {
       const msg = getErrorMessage(err);
       setError(msg);
@@ -201,33 +231,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfile = useCallback(async (data: Partial<UserProfile>) => {
     if (!firebaseUser) throw new Error("Foydalanuvchi tizimga kirmagan");
     await authService.updateProfile(firebaseUser.uid, data);
+    setUser((prev) => (prev ? { ...prev, ...data } : prev));
   }, [firebaseUser]);
 
   const refreshUser = useCallback(async () => {
     if (!firebaseUser) return;
     const docData = await authService.getUserDoc(firebaseUser.uid);
     setUser(docData);
-    if (docData?.role === "director") {
-      setIsDirector(true);
-      setIsAdmin(true);
-    } else if (docData?.role === "admin") {
-      setIsAdmin(true);
-    } else if (docData?.role === "teacher") {
-      setIsTeacher(true);
+    const isRestricted = docData?.status === "blocked" || docData?.status === "suspended";
+    if (isRestricted) {
+      setIsDirector(false);
+      setIsAdmin(false);
+      setIsTeacher(false);
+    } else {
+      if (docData?.role === "director") {
+        setIsDirector(true);
+        setIsAdmin(true);
+      } else if (docData?.role === "admin") {
+        setIsAdmin(true);
+      } else if (docData?.role === "teacher") {
+        setIsTeacher(true);
+      }
     }
   }, [firebaseUser]);
 
   const isSuspended = user?.status === "suspended";
   const isBlocked = user?.status === "blocked";
-  const isStudent = !isAdmin && !isTeacher && !isDirector;
+  const effectiveIsAdmin = !isBlocked && !isSuspended && isAdmin;
+  const effectiveIsTeacher = !isBlocked && !isSuspended && isTeacher;
+  const effectiveIsDirector = !isBlocked && !isSuspended && isDirector;
+  const isStudent = !effectiveIsAdmin && !effectiveIsTeacher && !effectiveIsDirector;
 
   const contextValue = useMemo<AuthContextValue>(
     () => ({
       firebaseUser,
       user,
-      isAdmin,
-      isTeacher,
-      isDirector,
+      isAdmin: effectiveIsAdmin,
+      isTeacher: effectiveIsTeacher,
+      isDirector: effectiveIsDirector,
       isStudent,
       isSuspended,
       isBlocked,

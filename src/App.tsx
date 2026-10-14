@@ -10,6 +10,7 @@ import {
   AdminRoute,
   TeacherRoute,
   DirectorRoute,
+  BlockedAccountScreen,
 } from "./components/common/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
 import { Spinner } from "./components/common/Spinner";
@@ -84,7 +85,7 @@ const DirectorAnalyticsPage = lazy(() => import("./pages/director/DirectorAnalyt
 const DirectorSettingsPage = lazy(() => import("./pages/director/DirectorSettingsPage").then((m) => ({ default: m.DirectorSettingsPage })));
 
 const RootRedirect: React.FC = () => {
-  const { firebaseUser, user, isAdmin, isTeacher, isDirector, loading } = useAuth();
+  const { firebaseUser, user, isAdmin, isTeacher, isDirector, isBlocked, isSuspended, loading } = useAuth();
 
   if (loading) {
     return (
@@ -96,6 +97,11 @@ const RootRedirect: React.FC = () => {
 
   if (!firebaseUser) {
     return <Navigate to="/login" replace />;
+  }
+
+  // If user account is blocked or suspended, immediately show BlockedAccountScreen
+  if (isBlocked || isSuspended || user?.status === "blocked" || user?.status === "suspended") {
+    return <BlockedAccountScreen />;
   }
 
   if (isDirector || user?.role === "director") {
