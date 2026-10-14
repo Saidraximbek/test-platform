@@ -15,6 +15,7 @@ import {
   X,
   PieChart,
   CreditCard,
+  CalendarCheck,
   LogOut,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -38,7 +39,8 @@ export const DirectorLayout: React.FC = () => {
     {
       label: "MOLIYA VA MAOSHLAR",
       items: [
-        { name: "O'quvchilar To'lovlari", href: "/admin/payments", icon: CreditCard },
+        { name: "Oylik To'lov Nazorati", href: "/director/monthly-payments", icon: CalendarCheck },
+        { name: "O'quvchilar To'lovlari", href: "/director/payments", icon: CreditCard },
         { name: "O'qituvchilar Maoshi", href: "/director/salaries", icon: DollarSign },
         { name: "Markaz Xarajatlari", href: "/director/expenses", icon: Receipt },
       ],
@@ -188,7 +190,17 @@ export const DirectorLayout: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link
+                to="/admin"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-sky-400 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 transition-all shadow-sm"
+                title="Admin boshqaruviga o'tish"
+              >
+                <Shield className="w-3.5 h-3.5 text-sky-400" />
+                <span className="hidden sm:inline">Admin Boshqaruvi</span>
+                <span className="sm:hidden">Admin</span>
+              </Link>
+
               <div className="text-right hidden sm:block">
                 <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Bugun</span>
                 <span className="text-xs font-bold text-slate-200">

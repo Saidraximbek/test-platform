@@ -48,6 +48,7 @@ const AdminUsersPage = lazy(() => import("./pages/admin/AdminUsersPage").then((m
 const AdminSubjectsPage = lazy(() => import("./pages/admin/AdminSubjectsPage").then((m) => ({ default: m.AdminSubjectsPage })));
 const AdminLevelsPage = lazy(() => import("./pages/admin/AdminLevelsPage").then((m) => ({ default: m.AdminLevelsPage })));
 const AdminQuestionsPage = lazy(() => import("./pages/admin/AdminQuestionsPage").then((m) => ({ default: m.AdminQuestionsPage })));
+const AdminTopicTestsPage = lazy(() => import("./pages/admin/AdminTopicTestsPage").then((m) => ({ default: m.AdminTopicTestsPage })));
 const AdminQuestionSubmissionsPage = lazy(() => import("./pages/admin/AdminQuestionSubmissionsPage").then((m) => ({ default: m.AdminQuestionSubmissionsPage })));
 const AdminProductsPage = lazy(() => import("./pages/admin/AdminProductsPage").then((m) => ({ default: m.AdminProductsPage })));
 const AdminOrdersPage = lazy(() => import("./pages/admin/AdminOrdersPage").then((m) => ({ default: m.AdminOrdersPage })));
@@ -59,6 +60,7 @@ const AdminGroupsPage = lazy(() => import("./pages/admin/AdminGroupsPage").then(
 const AdminTeachersPage = lazy(() => import("./pages/admin/AdminTeachersPage").then((m) => ({ default: m.AdminTeachersPage })));
 const AdminStudentsPage = lazy(() => import("./pages/admin/AdminStudentsPage").then((m) => ({ default: m.AdminStudentsPage })));
 const AdminPaymentsPage = lazy(() => import("./pages/admin/AdminPaymentsPage").then((m) => ({ default: m.AdminPaymentsPage })));
+const AdminMonthlyPaymentsPage = lazy(() => import("./pages/admin/AdminMonthlyPaymentsPage").then((m) => ({ default: m.AdminMonthlyPaymentsPage })));
 const AdminAdmissionsPage = lazy(() => import("./pages/admin/AdminAdmissionsPage").then((m) => ({ default: m.AdminAdmissionsPage })));
 
 // Teacher Pages
@@ -192,6 +194,8 @@ export const App: React.FC = () => {
         <Route index element={<DirectorDashboardPage />} />
         <Route path="users" element={<DirectorUsersPage />} />
         <Route path="finance" element={<DirectorFinancePage />} />
+        <Route path="payments" element={<AdminPaymentsPage />} />
+        <Route path="monthly-payments" element={<AdminMonthlyPaymentsPage />} />
         <Route path="salaries" element={<DirectorSalariesPage />} />
         <Route path="expenses" element={<DirectorExpensesPage />} />
         <Route path="analytics" element={<DirectorAnalyticsPage />} />
@@ -216,9 +220,11 @@ export const App: React.FC = () => {
         <Route path="groups" element={<AdminGroupsPage />} />
         <Route path="students" element={<AdminStudentsPage />} />
         <Route path="payments" element={<AdminPaymentsPage />} />
+        <Route path="monthly-payments" element={<AdminMonthlyPaymentsPage />} />
         <Route path="subjects" element={<AdminSubjectsPage />} />
         <Route path="levels" element={<AdminLevelsPage />} />
         <Route path="questions" element={<AdminQuestionsPage />} />
+        <Route path="topic-tests" element={<AdminTopicTestsPage />} />
         <Route path="question-submissions" element={<AdminQuestionSubmissionsPage />} />
         <Route path="products" element={<AdminProductsPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />

@@ -23,6 +23,8 @@ import {
   LogOut,
   Briefcase,
   UserPlus,
+  Sparkles,
+  CalendarCheck,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { sound } from "../../utils/soundEffects";
@@ -49,6 +51,7 @@ export const AdminLayout: React.FC = () => {
         { name: "O'qituvchilar Boshqaruvi", href: "/admin/teachers", icon: Briefcase },
         { name: "Guruhlar Boshqaruvi", href: "/admin/groups", icon: GraduationCap },
         { name: "O'quvchilar & Guruhlar", href: "/admin/students", icon: UserCheck },
+        { name: "Oylik To'lov Nazorati", href: "/admin/monthly-payments", icon: CalendarCheck, badge: "Yangi" },
         { name: "O'quv To'lovlari & Kassa", href: "/admin/payments", icon: CreditCard },
       ],
     },
@@ -58,6 +61,7 @@ export const AdminLayout: React.FC = () => {
         { name: "Fanlar Boshqaruvi", href: "/admin/subjects", icon: BookOpen },
         { name: "Darajalar (Levels)", href: "/admin/levels", icon: Layers },
         { name: "Savollar Bazasi", href: "/admin/questions", icon: HelpCircle },
+        { name: "Mavzuli Testlar Banki", href: "/admin/topic-tests", icon: Sparkles, badge: "Yangi" },
         { name: "Taklif Qilingan Savollar", href: "/admin/question-submissions", icon: FileQuestion },
       ],
     },
@@ -231,7 +235,19 @@ export const AdminLayout: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              {isDirector && (
+                <Link
+                  to="/director"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all shadow-sm"
+                  title="Direktor ERP paneliga qaytish"
+                >
+                  <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Direktor Paneli</span>
+                  <span className="sm:hidden">Direktor</span>
+                </Link>
+              )}
+
               <div className="text-right hidden sm:block">
                 <span className="text-[10px] text-slate-400 block uppercase font-bold tracking-wider">Bugun</span>
                 <span className="text-xs font-bold text-slate-200">

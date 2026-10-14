@@ -25,13 +25,17 @@ import {
 import { teacherService } from "./teacherService";
 import { groupService } from "./groupService";
 import { adminService } from "./adminService";
+import { subjectService } from "./subjectService";
 
 export interface StudentPaymentStatusItem {
   studentId: string;
   studentName: string;
   studentPhone?: string;
+  studentLogin?: string;
   groupId: string;
   groupName: string;
+  subjectId?: string;
+  subjectName?: string;
   teacherId: string;
   teacherName: string;
   month: string;
@@ -40,8 +44,10 @@ export interface StudentPaymentStatusItem {
   debtAmount: number;
   status: "PAID" | "PARTIAL" | "DEBT";
   lastPaymentDate?: string;
+  paymentMethod?: string;
   receiptNumber?: string;
   paymentId?: string;
+  paymentsCount?: number;
 }
 
 export interface FinancialSummary {
@@ -143,10 +149,13 @@ export const financeService = {
     studentName: string;
     groupId: string;
     groupName?: string;
+    teacherId?: string;
+    teacherName?: string;
     subjectId: string;
     amount: number;
     month: string;
     paymentDate: string;
+    paymentMethod?: string;
     adminId: string;
     adminName?: string;
     status: PaymentStatus;
@@ -162,10 +171,13 @@ export const financeService = {
       studentName: data.studentName,
       groupId: data.groupId,
       groupName: data.groupName || "",
+      teacherId: data.teacherId || "",
+      teacherName: data.teacherName || "",
       subjectId: data.subjectId,
       amount: Number(data.amount),
       month: data.month,
       paymentDate: data.paymentDate,
+      paymentMethod: data.paymentMethod || "Naqd",
       adminId: data.adminId,
       adminName: data.adminName || "Administrator",
       status: data.status,
@@ -771,11 +783,11 @@ export const financeService = {
       );
       const teacherGroupIds = new Set(teacherGroups.map((g) => g.groupId));
 
-      // Sum ONLY actual collected payments (PAID and positive amount) for this teacher's groups in this month
+      // Sum ONLY actual collected payments (PAID and positive amount) for this teacher's groups or directly assigned to teacher in this month
       const collected = payments
         .filter(
           (p) =>
-            teacherGroupIds.has(p.groupId) &&
+            (teacherGroupIds.has(p.groupId) || (p.teacherId && p.teacherId === teacher.uid)) &&
             p.status === "PAID" &&
             Number(p.amount) > 0
         )
@@ -957,7 +969,15 @@ export const financeService = {
   // =================== STUDENT PAYMENT & DEBT STATUS BY MONTH ===================
   async getStudentPaymentStatusByMonth(
     month: string,
-    teacherId?: string
+    filterOption?:
+      | string
+      | {
+          teacherId?: string;
+          groupId?: string;
+          subjectId?: string;
+          status?: "PAID" | "PARTIAL" | "DEBT" | "all";
+          searchQuery?: string;
+        }
   ): Promise<{
     items: StudentPaymentStatusItem[];
     totalPaidCount: number;
@@ -965,15 +985,24 @@ export const financeService = {
     totalPaidAmount: number;
     totalDebtAmount: number;
   }> {
+    const filters =
+      typeof filterOption === "string"
+        ? { teacherId: filterOption }
+        : filterOption || {};
+
     try {
-      const [payments, allGroups, allUsers] = await Promise.all([
+      const [payments, allGroups, allUsers, allSubjects] = await Promise.all([
         this.getPayments({ month }).catch(() => []),
         groupService.getGroups().catch(() => []),
-        adminService.getAllUsers("", "all", 300).catch(() => []),
+        adminService.getAllUsers("", "all", 500).catch(() => []),
+        subjectService.getSubjects().catch(() => []),
       ]);
 
       const groups = allGroups.filter((g) => g.status === "active" || !g.status);
       const groupMap = new Map<string, Group>(groups.map((g) => [g.groupId, g]));
+
+      const subjectMap = new Map<string, string>();
+      allSubjects.forEach((s) => subjectMap.set(s.subjectId, s.name));
 
       const teacherMap = new Map<string, string>();
       allUsers
@@ -992,6 +1021,8 @@ export const financeService = {
       for (const group of groups) {
         const gTeacherId = group.teacherId || "";
         const gTeacherName = group.teacherName || teacherMap.get(gTeacherId) || "Ustoz";
+        const gSubjectId = group.subjectId || "";
+        const gSubjectName = subjectMap.get(gSubjectId) || "";
         const monthlyFee = Number(group.monthlyPrice) || 500000;
 
         // Students in this group
@@ -1000,12 +1031,14 @@ export const financeService = {
           group.studentIds.forEach((id) => enrolledStudentIds.add(id));
         }
 
-        // Also check students who have enrolledGroups matching this group
+        // Also check students who have enrolledGroups matching this group or groupIds
         students.forEach((st) => {
-          if (
+          const hasEnrolledGroup =
             Array.isArray(st.enrolledGroups) &&
-            st.enrolledGroups.some((eg) => eg && eg.groupId === group.groupId)
-          ) {
+            st.enrolledGroups.some((eg) => eg && eg.groupId === group.groupId);
+          const hasGroupId =
+            Array.isArray(st.groupIds) && st.groupIds.includes(group.groupId);
+          if (hasEnrolledGroup || hasGroupId) {
             enrolledStudentIds.add(st.uid);
           }
         });
@@ -1014,12 +1047,13 @@ export const financeService = {
           const student = studentMap.get(stId);
           const studentName = student?.displayName || "O'quvchi";
           const studentPhone = student?.phoneNumber || "";
+          const studentLogin = student?.login || "";
 
           // Payments for this student and this group in this month
           const studentGroupPayments = payments.filter(
             (p) =>
               p.studentId === stId &&
-              (p.groupId === group.groupId || !p.groupId) &&
+              (p.groupId === group.groupId || (!p.groupId && enrolledStudentIds.size === 1)) &&
               p.status === "PAID" &&
               Number(p.amount) > 0
           );
@@ -1038,8 +1072,11 @@ export const financeService = {
             studentId: stId,
             studentName,
             studentPhone,
+            studentLogin,
             groupId: group.groupId,
             groupName: group.name,
+            subjectId: gSubjectId,
+            subjectName: gSubjectName,
             teacherId: gTeacherId,
             teacherName: gTeacherName,
             month,
@@ -1048,8 +1085,10 @@ export const financeService = {
             debtAmount,
             status,
             lastPaymentDate: lastPayment?.paymentDate,
+            paymentMethod: lastPayment?.paymentMethod,
             receiptNumber: lastPayment?.receiptNumber,
             paymentId: lastPayment?.paymentId,
+            paymentsCount: studentGroupPayments.length,
           });
         }
       }
@@ -1062,8 +1101,10 @@ export const financeService = {
           handledKeySet.add(key);
           const student = studentMap.get(p.studentId);
           const group = p.groupId ? groupMap.get(p.groupId) : null;
-          const gTeacherId = group?.teacherId || "";
-          const gTeacherName = group?.teacherName || teacherMap.get(gTeacherId) || "Ustoz";
+          const gTeacherId = group?.teacherId || p.teacherId || "";
+          const gTeacherName = group?.teacherName || p.teacherName || teacherMap.get(gTeacherId) || "Ustoz";
+          const gSubjectId = group?.subjectId || p.subjectId || "";
+          const gSubjectName = subjectMap.get(gSubjectId) || "";
           const paidAmt = p.status === "PAID" ? Number(p.amount || 0) : 0;
           const isDebt = p.status === "DEBT" || p.status === "PARTIAL";
 
@@ -1071,8 +1112,11 @@ export const financeService = {
             studentId: p.studentId,
             studentName: p.studentName || student?.displayName || "O'quvchi",
             studentPhone: student?.phoneNumber || "",
+            studentLogin: student?.login || "",
             groupId: p.groupId || "",
             groupName: p.groupName || group?.name || "O'quv kursi",
+            subjectId: gSubjectId,
+            subjectName: gSubjectName,
             teacherId: gTeacherId,
             teacherName: gTeacherName,
             month,
@@ -1081,16 +1125,48 @@ export const financeService = {
             debtAmount: isDebt ? Number(p.amount || 0) : Math.max(0, Number(p.amount || 500000) - paidAmt),
             status: p.status === "PAID" ? "PAID" : p.status === "PARTIAL" ? "PARTIAL" : "DEBT",
             lastPaymentDate: p.paymentDate,
+            paymentMethod: p.paymentMethod,
             receiptNumber: p.receiptNumber,
             paymentId: p.paymentId,
+            paymentsCount: 1,
           });
         }
       }
 
       // Filter by teacherId if requested
       let filteredItems = items;
-      if (teacherId && teacherId !== "all") {
-        filteredItems = filteredItems.filter((item) => item.teacherId === teacherId);
+      if (filters.teacherId && filters.teacherId !== "all") {
+        filteredItems = filteredItems.filter((item) => item.teacherId === filters.teacherId);
+      }
+
+      // Filter by groupId if requested
+      if (filters.groupId && filters.groupId !== "all") {
+        filteredItems = filteredItems.filter((item) => item.groupId === filters.groupId);
+      }
+
+      // Filter by subjectId if requested
+      if (filters.subjectId && filters.subjectId !== "all") {
+        filteredItems = filteredItems.filter((item) => item.subjectId === filters.subjectId);
+      }
+
+      // Filter by status if requested
+      if (filters.status && filters.status !== "all") {
+        filteredItems = filteredItems.filter((item) => item.status === filters.status);
+      }
+
+      // Filter by search query if requested
+      if (filters.searchQuery && filters.searchQuery.trim()) {
+        const q = filters.searchQuery.trim().toLowerCase();
+        filteredItems = filteredItems.filter(
+          (item) =>
+            item.studentName.toLowerCase().includes(q) ||
+            (item.studentPhone && item.studentPhone.toLowerCase().includes(q)) ||
+            (item.studentLogin && item.studentLogin.toLowerCase().includes(q)) ||
+            item.groupName.toLowerCase().includes(q) ||
+            item.teacherName.toLowerCase().includes(q) ||
+            (item.subjectName && item.subjectName.toLowerCase().includes(q)) ||
+            (item.receiptNumber && item.receiptNumber.toLowerCase().includes(q))
+        );
       }
 
       const totalPaidCount = filteredItems.filter((i) => i.status === "PAID").length;
