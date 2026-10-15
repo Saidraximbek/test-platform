@@ -27,6 +27,9 @@ import { Spinner } from "../../components/common/Spinner";
 import { sound } from "../../utils/soundEffects";
 import { VideoEmbed } from "../../components/common/VideoEmbed";
 import { extractYouTubeUrls } from "../../utils/videoUtils";
+import { RichTextEditor, FormattedContent } from "../../components/common/RichTextEditor";
+import { db } from "../../lib/firebase";
+import { collection, query, where, getDocs } from "firebase/firestore";
 
 export const StudentLessonDetailPage: React.FC = () => {
   const { lessonId } = useParams<{ lessonId: string }>();
@@ -41,6 +44,7 @@ export const StudentLessonDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submittingHw, setSubmittingHw] = useState(false);
   const [startingTest, setStartingTest] = useState(false);
+  const [completedTestSession, setCompletedTestSession] = useState<any | null>(null);
 
   useEffect(() => {
     const loadLessonDetails = async () => {
@@ -80,6 +84,24 @@ export const StudentLessonDetailPage: React.FC = () => {
           if (mySub) {
             setSubmission(mySub);
             setHomeworkText(mySub.textAnswer || "");
+          }
+
+          // Check if student has already completed the attached test
+          if (les.testId && user?.uid) {
+            try {
+              const qSess = query(
+                collection(db, "test_sessions"),
+                where("userId", "==", user.uid),
+                where("levelId", "==", les.testId)
+              );
+              const sSnap = await getDocs(qSess);
+              if (!sSnap.empty) {
+                const completed = sSnap.docs.find((d) => (d.data() as any).status === "completed") || sSnap.docs[0];
+                setCompletedTestSession(completed.data());
+              }
+            } catch (sessErr) {
+              console.warn("Could not check attached test session:", sessErr);
+            }
           }
         }
       } catch (err: any) {
@@ -129,14 +151,20 @@ export const StudentLessonDetailPage: React.FC = () => {
   };
 
   const handleStartAttachedTest = async () => {
-    if (!lesson?.testId || !lesson.subjectId) return;
+    if (startingTest) return;
+    if (completedTestSession && completedTestSession.status === "completed") {
+      toastError("Ushbu dars testi faqat 1 marta topshiriladi. Siz allaqachon topshirgansiz.");
+      return;
+    }
+    if (!lesson?.testId) return;
 
     try {
       setStartingTest(true);
       sound.playClick();
+      const effectiveSubjectId = lesson.subjectId || "general";
       // TestId in lesson links to levelId in existing test system
-      const res = await testService.startTest(lesson.subjectId, lesson.testId);
-      navigate(`/test/${res.sessionId}`);
+      const res = await testService.startTest(effectiveSubjectId, lesson.testId);
+      navigate(`/test/${res.sessionId}`, { state: { sessionData: res } });
     } catch (err: any) {
       toastError(err.message || "Testni boshlab bo'lmadi");
     } finally {
@@ -235,25 +263,53 @@ export const StudentLessonDetailPage: React.FC = () => {
         <Card className="p-6 bg-gradient-to-br from-amber-500/10 via-slate-900/40 to-slate-900 border-amber-500/30">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="space-y-1">
-              <span className="text-[10px] font-black uppercase text-amber-500 tracking-wider">
-                🧪 Mavzulashtirilgan Test
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase text-amber-500 tracking-wider">
+                  🧪 Mavzulashtirilgan Test
+                </span>
+                {completedTestSession && completedTestSession.status === "completed" && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" /> 1 marta topshirilgan
+                  </span>
+                )}
+              </div>
               <h3 className="text-lg font-black text-slate-900 dark:text-white">
                 Mavzuni Test Orqali Mustahkamlash
               </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Ushbu dars uchun maxsus test mavjud. Har bir to'g'ri javob uchun +1 Tillo tangasiga ega bo'lasiz!
-              </p>
+              {completedTestSession && completedTestSession.status === "completed" ? (
+                <div className="flex flex-wrap items-center gap-3 text-xs mt-1">
+                  <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20">
+                    Natijangiz: {completedTestSession.score}% ({completedTestSession.correctCount || 0} to'g'ri javob)
+                  </span>
+                  <span className="text-amber-400 font-bold bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+                    +{completedTestSession.earnedCoins || completedTestSession.correctCount || 0} Tillo ball olindi
+                  </span>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  Ushbu dars uchun maxsus test mavjud (Faqat 1 marta ishlash mumkin). Har bir to'g'ri javob uchun +1 Tillo tangasiga ega bo'lasiz!
+                </p>
+              )}
             </div>
 
-            <Button
-              onClick={handleStartAttachedTest}
-              isLoading={startingTest}
-              className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black shadow-lg shadow-amber-500/25 shrink-0"
-              leftIcon={<Play className="w-4 h-4" />}
-            >
-              Testni Boshlash
-            </Button>
+            {completedTestSession && completedTestSession.status === "completed" ? (
+              <Button
+                onClick={() => navigate(`/test/${completedTestSession.sessionId}/result`)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shrink-0 shadow-lg shadow-emerald-600/25"
+                leftIcon={<CheckCircle2 className="w-4 h-4" />}
+              >
+                Natijani ko'rish
+              </Button>
+            ) : (
+              <Button
+                onClick={handleStartAttachedTest}
+                isLoading={startingTest}
+                className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black shadow-lg shadow-amber-500/25 shrink-0"
+                leftIcon={<Play className="w-4 h-4" />}
+              >
+                Testni Boshlash
+              </Button>
+            )}
           </div>
         </Card>
       )}
@@ -273,7 +329,7 @@ export const StudentLessonDetailPage: React.FC = () => {
               }`}
             >
               {submission.status === "COMPLETED"
-                ? `Baholandi: ${submission.score} ball`
+                ? `Baholandi: ${submission.score} ball (+${submission.score} Tillo)`
                 : "Topshirildi (Tekshirilmoqda)"}
             </span>
           )}
@@ -281,11 +337,11 @@ export const StudentLessonDetailPage: React.FC = () => {
 
         {homework?.instructions ? (
           <div className="mb-4 space-y-3">
-            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-              <span className="font-bold block mb-1 text-slate-900 dark:text-white">
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed">
+              <span className="font-bold block mb-2 text-slate-900 dark:text-white">
                 Vazifa sharti:
               </span>
-              {homework.instructions}
+              <FormattedContent content={homework.instructions} />
             </div>
 
             {/* Embedded video if homework has a videoUrl or instructions contains YouTube links */}
@@ -297,11 +353,11 @@ export const StudentLessonDetailPage: React.FC = () => {
             ))}
           </div>
         ) : (
-          <div className="mb-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-            <span className="font-bold block mb-1 text-slate-900 dark:text-white">
+          <div className="mb-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 text-xs leading-relaxed">
+            <span className="font-bold block mb-2 text-slate-900 dark:text-white">
               Vazifa sharti:
             </span>
-            {lesson.description || `${lesson.title} mavzusi bo'yicha berilgan amaliy topshiriq va mashqlarni bajaring hamda yechimlarini yuboring.`}
+            <FormattedContent content={lesson.description || `${lesson.title} mavzusi bo'yicha berilgan amaliy topshiriq va mashqlarni bajaring hamda yechimlarini yuboring.`} />
           </div>
         )}
 
@@ -319,35 +375,31 @@ export const StudentLessonDetailPage: React.FC = () => {
 
         {/* Submission Form */}
         <form onSubmit={handleSubmitHomework} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Sizning javobingiz:
-            </label>
-            <textarea
-              rows={4}
-              value={homeworkText}
-              onChange={(e) => setHomeworkText(e.target.value)}
-              placeholder="Masalalar yechimi, YouTube video havolasi yoki javoblaringizni batafsil yozing..."
-              className="w-full p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-500"
-              required
-            />
-            {/* Live video preview while student types a YouTube link */}
-            {homeworkText && extractYouTubeUrls(homeworkText).length > 0 && !submission && (
-              <div className="mt-3 space-y-1.5">
-                <span className="text-[11px] font-bold text-sky-500 flex items-center gap-1">
-                  <Video className="w-3.5 h-3.5" /> Video havola aniqlandi (Oldindan ko'rish):
-                </span>
-                {extractYouTubeUrls(homeworkText).map((ytUrl, idx) => (
-                  <VideoEmbed key={idx} url={ytUrl} title="Yuborilayotgan video" />
-                ))}
-              </div>
-            )}
-          </div>
+          <RichTextEditor
+            label="Sizning javobingiz (Dizayn berib yozishingiz mumkin):"
+            value={homeworkText}
+            onChange={setHomeworkText}
+            placeholder="Masalalar yechimi, YouTube video havolasi yoki javoblaringizni batafsil yozing..."
+            rows={5}
+            required
+          />
+
+          {/* Live video preview while student types a YouTube link */}
+          {homeworkText && extractYouTubeUrls(homeworkText).length > 0 && !submission && (
+            <div className="mt-3 space-y-1.5">
+              <span className="text-[11px] font-bold text-sky-500 flex items-center gap-1">
+                <Video className="w-3.5 h-3.5" /> Video havola aniqlandi (Oldindan ko'rish):
+              </span>
+              {extractYouTubeUrls(homeworkText).map((ytUrl, idx) => (
+                <VideoEmbed key={idx} url={ytUrl} title="Yuborilayotgan video" />
+              ))}
+            </div>
+          )}
 
           {submission?.teacherComment && (
             <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-700 dark:text-emerald-400">
               <span className="font-bold block mb-1">Ustoz tekshirib izoh qoldirdi:</span>
-              <p>{submission.teacherComment}</p>
+              <FormattedContent content={submission.teacherComment} />
             </div>
           )}
 

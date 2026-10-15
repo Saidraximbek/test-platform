@@ -37,12 +37,25 @@ function markGroupAsDeleted(groupId: string): void {
   } catch {}
 }
 
+export function safeStudentIds(val: any): string[] {
+  if (Array.isArray(val)) return val.filter((x): x is string => typeof x === "string");
+  if (val && typeof val === "object" && Array.isArray(val.elements)) {
+    return val.elements.filter((x: any): x is string => typeof x === "string");
+  }
+  return [];
+}
+
 function getLocalGroups(): Group[] {
   try {
     const raw = localStorage.getItem(GROUPS_CACHE_KEY);
-    const list: Group[] = raw ? JSON.parse(raw) : [];
+    const list: any[] = raw ? JSON.parse(raw) : [];
     const deletedIds = getDeletedGroupIds();
-    return list.filter((g) => g && g.groupId && !deletedIds.has(g.groupId));
+    return list
+      .filter((g) => g && g.groupId && !deletedIds.has(g.groupId))
+      .map((g) => ({
+        ...g,
+        studentIds: safeStudentIds(g.studentIds),
+      })) as Group[];
   } catch {
     return [];
   }
@@ -91,6 +104,7 @@ export const groupService = {
           groupsMap.set(d.id, {
             groupId: data.groupId || d.id,
             ...data,
+            studentIds: safeStudentIds(data.studentIds),
           } as Group);
         }
       });
@@ -194,7 +208,7 @@ export const groupService = {
           groupsMap.set(cg.groupId, cg);
         } else {
           const ex = groupsMap.get(cg.groupId)!;
-          const mergedS = Array.from(new Set([...(ex.studentIds || []), ...(cg.studentIds || [])]));
+          const mergedS = Array.from(new Set([...safeStudentIds(ex.studentIds), ...safeStudentIds(cg.studentIds)]));
           ex.studentIds = mergedS;
           ex.currentStudentsCount = Math.max(ex.currentStudentsCount || 0, mergedS.length);
           if (!ex.name && cg.name) ex.name = cg.name;
@@ -214,7 +228,7 @@ export const groupService = {
           u.enrolledGroups.forEach((eg) => {
             if (eg && eg.groupId && !deletedIds.has(eg.groupId) && groupsMap.has(eg.groupId)) {
               const grp = groupsMap.get(eg.groupId)!;
-              const sIds = new Set(grp.studentIds || []);
+              const sIds = new Set(safeStudentIds(grp.studentIds));
               sIds.add(uid);
               grp.studentIds = Array.from(sIds);
             }
@@ -227,7 +241,7 @@ export const groupService = {
             if (gId && !deletedIds.has(gId)) {
               if (groupsMap.has(gId)) {
                 const grp = groupsMap.get(gId)!;
-                const sIds = new Set(grp.studentIds || []);
+                const sIds = new Set(safeStudentIds(grp.studentIds));
                 sIds.add(uid);
                 grp.studentIds = Array.from(sIds);
               } else {
@@ -260,7 +274,7 @@ export const groupService = {
 
     // Finalize counts and save cache
     groupsMap.forEach((grp) => {
-      const sIds = Array.from(new Set(grp.studentIds || []));
+      const sIds = Array.from(new Set(safeStudentIds(grp.studentIds)));
       grp.studentIds = sIds;
       grp.currentStudentsCount = sIds.length;
     });
@@ -547,7 +561,7 @@ export const groupService = {
                     });
                   } else {
                     const existing = foundGroupsMap.get(eg.groupId)!;
-                    const sIds = new Set(existing.studentIds || []);
+                    const sIds = new Set(safeStudentIds(existing.studentIds));
                     sIds.add(uid);
                     existing.studentIds = Array.from(sIds);
                     existing.currentStudentsCount = existing.studentIds.length;
@@ -562,7 +576,7 @@ export const groupService = {
             u.groupIds.forEach((gId) => {
               if (foundGroupsMap.has(gId)) {
                 const existing = foundGroupsMap.get(gId)!;
-                const sIds = new Set(existing.studentIds || []);
+                const sIds = new Set(safeStudentIds(existing.studentIds));
                 sIds.add(uid);
                 existing.studentIds = Array.from(sIds);
                 existing.currentStudentsCount = existing.studentIds.length;
@@ -598,7 +612,7 @@ export const groupService = {
           foundGroupsMap.set(g.groupId, g);
         } else {
           const ex = foundGroupsMap.get(g.groupId)!;
-          const mergedStudents = Array.from(new Set([...(ex.studentIds || []), ...(g.studentIds || [])]));
+          const mergedStudents = Array.from(new Set([...safeStudentIds(ex.studentIds), ...safeStudentIds(g.studentIds)]));
           ex.studentIds = mergedStudents;
           ex.currentStudentsCount = Math.max(ex.currentStudentsCount || 0, mergedStudents.length);
         }
@@ -1096,7 +1110,7 @@ export const groupService = {
     const allCached = getLocalGroups();
     const updatedGroups = allCached.map((g) => {
       if (g.groupId === groupId) {
-        const remaining = (g.studentIds || []).filter((id) => id !== studentId);
+        const remaining = safeStudentIds(g.studentIds).filter((id) => id !== studentId);
         return {
           ...g,
           studentIds: remaining,
@@ -1258,7 +1272,7 @@ export const groupService = {
       const currentGroups = getLocalGroups();
       const updated = currentGroups.map((g) => {
         if (g.groupId === groupId) {
-          const mergedIds = Array.from(new Set([...(g.studentIds || []), ...result.map((s) => s.uid)]));
+          const mergedIds = Array.from(new Set([...safeStudentIds(g.studentIds), ...result.map((s) => s.uid)]));
           return {
             ...g,
             studentIds: mergedIds,

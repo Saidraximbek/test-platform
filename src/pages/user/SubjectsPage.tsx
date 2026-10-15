@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { BookOpen, Layers, ArrowRight } from "lucide-react";
 import { subjectService } from "../../services/subjectService";
@@ -35,11 +35,11 @@ export const SubjectsPage: React.FC = () => {
   return (
     <div className="space-y-8 pb-12">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100">
-          Fanlar Ro'yxati
+        <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <span>🧪 Fanlar va Onlayn Testlar</span>
         </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          O'zingiz qiziqqan fanni tanlang va bosqichma-bosqich darajalarni yengib boring
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          Test ishlash uchun kerakli fanni tanlang va darajalar bo'yicha savollarni yechib, Tillo tangalar to'plang
         </p>
       </div>
 

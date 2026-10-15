@@ -9,6 +9,7 @@ import { getErrorMessage } from "../utils";
 interface AuthContextValue {
   firebaseUser: FirebaseUser | null;
   user: UserProfile | null;
+  isRootOwner: boolean;
   isAdmin: boolean;
   isTeacher: boolean;
   isDirector: boolean;
@@ -29,6 +30,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [isRootOwner, setIsRootOwner] = useState<boolean>(false);
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isTeacher, setIsTeacher] = useState<boolean>(false);
   const [isDirector, setIsDirector] = useState<boolean>(false);
@@ -64,10 +66,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const tokenResult = await fUser.getIdTokenResult();
           const claims = tokenResult.claims;
-          const claimDirector = claims.role === "director";
+          const claimRootOwner = claims.role === "root_owner" || claims.rootOwner === true;
+          const claimDirector = claims.role === "director" || claimRootOwner;
           const claimAdmin = claims.admin === true || claims.role === "admin" || claimDirector;
           const claimTeacher = claims.role === "teacher";
 
+          if (claimRootOwner) setIsRootOwner(true);
           if (claimDirector) setIsDirector(true);
           if (claimAdmin) setIsAdmin(true);
           if (claimTeacher) setIsTeacher(true);
@@ -115,7 +119,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 };
                 await setDoc(doc(db, "users", fUser.uid), fallbackProfile, { merge: true });
                 setUser(fallbackProfile);
-                if (fallbackProfile.role === "director") {
+                if (fallbackProfile.role === "root_owner") {
+                  setIsRootOwner(true);
+                  setIsDirector(true);
+                  setIsAdmin(true);
+                } else if (fallbackProfile.role === "director") {
                   setIsDirector(true);
                   setIsAdmin(true);
                 } else if (fallbackProfile.role === "admin") {
@@ -131,11 +139,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(userDoc);
             const isAccountRestricted = userDoc.status === "blocked" || userDoc.status === "suspended";
             if (isAccountRestricted) {
+              setIsRootOwner(false);
               setIsDirector(false);
               setIsAdmin(false);
               setIsTeacher(false);
             } else {
-              if (userDoc.role === "director") {
+              if (userDoc.role === "root_owner" || userDoc.isProtectedRoot) {
+                setIsRootOwner(true);
+                setIsDirector(true);
+                setIsAdmin(true);
+              } else if (userDoc.role === "director") {
                 setIsDirector(true);
                 setIsAdmin(true);
               } else if (userDoc.role === "admin") {
@@ -143,6 +156,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               } else if (userDoc.role === "teacher") {
                 setIsTeacher(true);
               } else {
+                setIsRootOwner(false);
                 setIsDirector(false);
                 setIsAdmin(false);
                 setIsTeacher(false);
@@ -154,6 +168,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         if (unsubscribeDoc) unsubscribeDoc();
         setUser(null);
+        setIsRootOwner(false);
         setIsAdmin(false);
         setIsTeacher(false);
         setIsDirector(false);
@@ -186,12 +201,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const tokenResult = await fUser.getIdTokenResult();
       const claims = tokenResult.claims;
-      const claimDirector = claims.role === "director";
+      const claimRootOwner = claims.role === "root_owner" || claims.rootOwner === true || userProfile?.role === "root_owner";
+      const claimDirector = claims.role === "director" || claimRootOwner;
       const claimAdmin = claims.admin === true || claims.role === "admin" || claimDirector;
       const claimTeacher = claims.role === "teacher";
 
       if (userProfile?.status !== "blocked" && userProfile?.status !== "suspended") {
-        if (claimDirector || userProfile?.role === "director") {
+        if (claimRootOwner || userProfile?.role === "root_owner") {
+          setIsRootOwner(true);
+          setIsDirector(true);
+          setIsAdmin(true);
+        } else if (claimDirector || userProfile?.role === "director") {
           setIsDirector(true);
           setIsAdmin(true);
         } else if (claimAdmin || userProfile?.role === "admin") {
@@ -223,6 +243,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await authService.logout();
     setUser(null);
     setFirebaseUser(null);
+    setIsRootOwner(false);
     setIsAdmin(false);
     setIsTeacher(false);
     setIsDirector(false);
@@ -240,11 +261,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(docData);
     const isRestricted = docData?.status === "blocked" || docData?.status === "suspended";
     if (isRestricted) {
+      setIsRootOwner(false);
       setIsDirector(false);
       setIsAdmin(false);
       setIsTeacher(false);
     } else {
-      if (docData?.role === "director") {
+      if (docData?.role === "root_owner" || docData?.isProtectedRoot) {
+        setIsRootOwner(true);
+        setIsDirector(true);
+        setIsAdmin(true);
+      } else if (docData?.role === "director") {
         setIsDirector(true);
         setIsAdmin(true);
       } else if (docData?.role === "admin") {
@@ -257,15 +283,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isSuspended = user?.status === "suspended";
   const isBlocked = user?.status === "blocked";
-  const effectiveIsAdmin = !isBlocked && !isSuspended && isAdmin;
+  const effectiveIsRootOwner = !isBlocked && !isSuspended && (isRootOwner || user?.role === "root_owner");
+  const effectiveIsDirector = !isBlocked && !isSuspended && (isDirector || effectiveIsRootOwner);
+  const effectiveIsAdmin = !isBlocked && !isSuspended && (isAdmin || effectiveIsDirector);
   const effectiveIsTeacher = !isBlocked && !isSuspended && isTeacher;
-  const effectiveIsDirector = !isBlocked && !isSuspended && isDirector;
-  const isStudent = !effectiveIsAdmin && !effectiveIsTeacher && !effectiveIsDirector;
+  const isStudent = !effectiveIsRootOwner && !effectiveIsDirector && !effectiveIsAdmin && !effectiveIsTeacher;
 
   const contextValue = useMemo<AuthContextValue>(
     () => ({
       firebaseUser,
       user,
+      isRootOwner: effectiveIsRootOwner,
       isAdmin: effectiveIsAdmin,
       isTeacher: effectiveIsTeacher,
       isDirector: effectiveIsDirector,
@@ -283,9 +311,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [
       firebaseUser,
       user,
-      isAdmin,
-      isTeacher,
-      isDirector,
+      effectiveIsRootOwner,
+      effectiveIsAdmin,
+      effectiveIsTeacher,
+      effectiveIsDirector,
       isStudent,
       isSuspended,
       isBlocked,

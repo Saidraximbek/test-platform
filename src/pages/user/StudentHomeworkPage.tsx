@@ -26,6 +26,7 @@ import { Spinner } from "../../components/common/Spinner";
 import { sound } from "../../utils/soundEffects";
 import { VideoEmbed } from "../../components/common/VideoEmbed";
 import { extractYouTubeUrls } from "../../utils/videoUtils";
+import { RichTextEditor, FormattedContent } from "../../components/common/RichTextEditor";
 
 export const StudentHomeworkPage: React.FC = () => {
   const { user } = useAuth();
@@ -391,9 +392,9 @@ export const StudentHomeworkPage: React.FC = () => {
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           {selectedHw?.instructions && (
-            <div className="p-3 rounded-xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs text-slate-700 dark:text-slate-300 space-y-2">
-              <strong className="block text-indigo-600 dark:text-indigo-400">Topshiriq sharti:</strong>
-              <p>{selectedHw.instructions}</p>
+            <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/40 text-xs text-slate-700 dark:text-slate-300 space-y-2">
+              <strong className="block text-indigo-600 dark:text-indigo-400 font-bold">Topshiriq sharti:</strong>
+              <FormattedContent content={selectedHw.instructions} />
 
               {extractYouTubeUrls(selectedHw.instructions).map((ytUrl, idx) => (
                 <div key={idx} className="pt-1">
@@ -404,16 +405,13 @@ export const StudentHomeworkPage: React.FC = () => {
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              Javobingiz matni / Yechim
-            </label>
-            <textarea
+            <RichTextEditor
+              label="Javobingiz matni / Yechim (Dizayn berib yozish mumkin):"
+              value={textAnswer}
+              onChange={setTextAnswer}
+              placeholder="Vazifa bo'yicha javobingizni, YouTube video havolasini yoki yechimlaringizni yozing..."
               rows={5}
               required
-              placeholder="Vazifa bo'yicha javobingizni, YouTube video havolasini yoki yechimlaringizni yozing..."
-              value={textAnswer}
-              onChange={(e) => setTextAnswer(e.target.value)}
-              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-brand-500"
             />
 
             {/* Live video preview while typing */}

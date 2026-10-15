@@ -91,17 +91,20 @@ export const authService = {
   },
 
   async updateProfile(uid: string, data: Partial<UserProfile>) {
-    // Only safe profile fields allowed
-    const safeData = {
-      displayName: data.displayName,
-      age: data.age,
-      phoneNumber: data.phoneNumber,
-      educationPlace: data.educationPlace,
-      isCenterStudent: data.isCenterStudent,
-      photoURL: data.photoURL,
+    // Safe profile fields allowed
+    const safeData: any = {
       updatedAt: serverTimestamp(),
       lastActiveAt: serverTimestamp(),
     };
+    if (data.displayName !== undefined) safeData.displayName = data.displayName;
+    if (data.age !== undefined) safeData.age = data.age;
+    if (data.phoneNumber !== undefined) safeData.phoneNumber = data.phoneNumber;
+    if (data.educationPlace !== undefined) safeData.educationPlace = data.educationPlace;
+    if (data.isCenterStudent !== undefined) safeData.isCenterStudent = data.isCenterStudent;
+    if (data.photoURL !== undefined) safeData.photoURL = data.photoURL;
+    if (data.login !== undefined) safeData.login = data.login;
+    if (data.plainPassword !== undefined) safeData.plainPassword = data.plainPassword;
+
     await updateDoc(doc(db, "users", uid), safeData);
   },
 

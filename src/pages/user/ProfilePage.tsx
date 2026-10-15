@@ -20,7 +20,12 @@ import {
   Award,
   DoorOpen,
   DollarSign,
+  Key,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { apiRequest } from "../../lib/serverAdapter/client";
 import { ProfileUpdateSchema } from "../../schemas";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
@@ -52,6 +57,63 @@ export const ProfilePage: React.FC = () => {
     hasDebt: boolean;
   } | null>(null);
   const [teacherSalary, setTeacherSalary] = useState<TeacherSalary | null>(null);
+
+  // Akkaunt & Parol o'zgartirish holatlari
+  const [accountLogin, setAccountLogin] = useState(user?.login || user?.email?.split("@")[0] || "");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [isUpdatingCredentials, setIsUpdatingCredentials] = useState(false);
+
+  useEffect(() => {
+    if (user?.login) {
+      setAccountLogin(user.login);
+    } else if (user?.email) {
+      setAccountLogin(user.email.split("@")[0]);
+    }
+  }, [user?.login, user?.email]);
+
+  const handleCredentialsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accountLogin.trim() && !newPassword.trim()) {
+      toastError("Iltimos, login yoki yangi parol kiriting");
+      return;
+    }
+    if (newPassword.trim()) {
+      if (newPassword.trim().length < 4) {
+        toastError("Yangi parol kamida 4 ta belgidan iborat bo'lishi kerak");
+        return;
+      }
+      if (newPassword.trim() !== confirmPassword.trim()) {
+        toastError("Kiritilgan parollar bir-biriga mos kelmadi");
+        return;
+      }
+    }
+
+    try {
+      setIsUpdatingCredentials(true);
+      await apiRequest("/auth/update-credentials", {
+        method: "POST",
+        body: JSON.stringify({
+          login: accountLogin.trim() || undefined,
+          newPassword: newPassword.trim() || undefined,
+        }),
+      });
+
+      await updateProfile({
+        login: accountLogin.trim() || undefined,
+        plainPassword: newPassword.trim() || user?.plainPassword || undefined,
+      });
+
+      success("Akkaunt login va parolingiz muvaffaqiyatli saqlandi!");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      toastError(err.message || "Akkaunt ma'lumotlarini o'zgartirishda xatolik");
+    } finally {
+      setIsUpdatingCredentials(false);
+    }
+  };
 
   useEffect(() => {
     const loadStudentLMSData = async () => {
@@ -291,6 +353,78 @@ export const ProfilePage: React.FC = () => {
               </Button>
             </div>
           </form>
+
+          {/* Akkaunt Login & Parol o'zgartirish */}
+          <div className="pt-6 mt-6 border-t border-slate-200 dark:border-slate-800">
+            <div className="flex items-center gap-2 mb-3">
+              <Key className="w-4 h-4 text-brand-500" />
+              <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                Akkaunt Login va Parolni o'zgartirish
+              </h4>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Tizimga kirish uchun login yoki yangi parolingizni belgilang.
+            </p>
+
+            <form onSubmit={handleCredentialsSubmit} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <Input
+                  label="Login (Foydalanuvchi nomi)"
+                  placeholder="masalan: ali_valiyev"
+                  leftIcon={<User className="w-4 h-4" />}
+                  value={accountLogin}
+                  onChange={(e) => setAccountLogin(e.target.value)}
+                />
+
+                <div className="relative">
+                  <Input
+                    label="Yangi parol (kamida 4 belgi)"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Yangi parol kiriting"
+                    leftIcon={<Lock className="w-4 h-4" />}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    rightIcon={
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        title={showPassword ? "Parolni yashirish" : "Parolni ko'rsatish"}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    }
+                  />
+                </div>
+              </div>
+
+              {newPassword.trim().length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div />
+                  <Input
+                    label="Parolni tasdiqlang"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Parolni qayta kiriting"
+                    leftIcon={<Lock className="w-4 h-4" />}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="submit"
+                  variant="amber"
+                  size="sm"
+                  isLoading={isUpdatingCredentials}
+                  rightIcon={<Key className="w-4 h-4" />}
+                >
+                  Login va Parolni saqlash
+                </Button>
+              </div>
+            </form>
+          </div>
         </Card>
       </div>
 

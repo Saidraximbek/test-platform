@@ -65,6 +65,7 @@ export const AdminPaymentsPage: React.FC = () => {
   const [amount, setAmount] = useState(500000);
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("PAID");
+  const [paymentMethod, setPaymentMethod] = useState("Naqd");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -160,10 +161,13 @@ export const AdminPaymentsPage: React.FC = () => {
         studentName: student?.displayName || "O'quvchi",
         groupId: selectedGroupId,
         groupName: group?.name || "",
+        teacherId: group?.teacherId || "",
+        teacherName: group?.teacherName || "",
         subjectId: group?.subjectId || "",
         amount: Number(amount),
         month: selectedMonth,
         paymentDate,
+        paymentMethod: paymentMethod || "Naqd",
         adminId: user?.uid || "admin",
         adminName: user?.displayName || "Administrator",
         status: paymentStatus,
@@ -276,13 +280,32 @@ export const AdminPaymentsPage: React.FC = () => {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2">
-            <CreditCard className="w-7 h-7 text-emerald-400" />
-            <h1 className="text-2xl font-black tracking-tight text-white">To'lovlar & Kassa Boshqaruvi</h1>
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-xl border ${
+              isDirector
+                ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                : "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+            }`}>
+              <CreditCard className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-black tracking-tight text-white">
+                  {isDirector ? "O'quvchilar To'lovlari Nazorati" : "To'lovlar & Kassa Boshqaruvi"}
+                </h1>
+                {isDirector && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-300 font-black border border-amber-500/30 uppercase tracking-wider">
+                    Direktor Paneli
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {isDirector
+                  ? "Direktor nazorati: To'lovlarni qabul qilish, chek chiqarish, to'lovlarni o'chirish va qarzdorlik tahlili"
+                  : "O'quvchilar to'lovlarini qabul qilish, to'lov qilgan va qarzdorlarni nazorat qilish hamda cheklar chiqarish"}
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-400 mt-1">
-            O'quvchilar to'lovlarini qabul qilish, to'lov qilgan va qarzdorlarni nazorat qilish hamda cheklar chiqarish
-          </p>
         </div>
 
         <Button
@@ -393,31 +416,41 @@ export const AdminPaymentsPage: React.FC = () => {
       {/* Navigation Tabs: Student Control vs Transactions History */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
         <button
+          type="button"
           onClick={() => setActiveTab("control")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeTab === "control"
-              ? "bg-brand-600 text-white shadow-lg shadow-brand-500/20"
+              ? isDirector
+                ? "bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/25"
+                : "bg-brand-600 text-white shadow-lg shadow-brand-500/20"
               : "text-slate-400 hover:text-white hover:bg-slate-800/60"
           }`}
         >
           <UserCheck className="w-4 h-4" />
           <span>O'quvchilar To'lov Nazorati</span>
-          <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-slate-900/60 font-black">
+          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+            activeTab === "control" && isDirector ? "bg-amber-600/30 text-slate-950" : "bg-slate-900/60 text-white"
+          }`}>
             {totalStudentsCount}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab("history")}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
             activeTab === "history"
-              ? "bg-brand-600 text-white shadow-lg shadow-brand-500/20"
+              ? isDirector
+                ? "bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/25"
+                : "bg-brand-600 text-white shadow-lg shadow-brand-500/20"
               : "text-slate-400 hover:text-white hover:bg-slate-800/60"
           }`}
         >
           <CreditCard className="w-4 h-4" />
           <span>To'lov Cheklari & Kassa Tarixi</span>
-          <span className="px-1.5 py-0.5 rounded-md text-[10px] bg-slate-900/60 font-black">
+          <span className={`px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+            activeTab === "history" && isDirector ? "bg-amber-600/30 text-slate-950" : "bg-slate-900/60 text-white"
+          }`}>
             {filteredPayments.length}
           </span>
         </button>
@@ -604,34 +637,80 @@ export const AdminPaymentsPage: React.FC = () => {
                         </td>
 
                         {/* Actions */}
-                        <td className="p-3.5 text-right">
+                        <td className="p-3.5 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1.5">
-                            {isPaid ? (
-                              <button
-                                onClick={() => {
-                                  const matchingP = payments.find(
-                                    (p) =>
-                                      p.studentId === item.studentId &&
-                                      p.groupId === item.groupId &&
-                                      p.status === "PAID"
-                                  );
-                                  if (matchingP) setReceiptPayment(matchingP);
-                                }}
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-brand-300 hover:bg-brand-600 hover:text-white transition-all border border-slate-700/60"
-                                title="Kvitansiyani ko'rish"
-                              >
-                                <Printer className="w-3.5 h-3.5" /> Chek
-                              </button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="primary"
-                                onClick={() => handleOpenPaymentForStudent(item)}
-                                leftIcon={<Plus className="w-3.5 h-3.5" />}
-                              >
-                                To'lov olish
-                              </Button>
-                            )}
+                            {(() => {
+                              const matchingPayment =
+                                (item.paymentId ? payments.find((p) => p.paymentId === item.paymentId) : null) ||
+                                payments.find(
+                                  (p) =>
+                                    p.studentId === item.studentId &&
+                                    (p.groupId === item.groupId || !p.groupId) &&
+                                    (p.month?.slice(0, 7) === selectedMonth || p.paymentDate?.slice(0, 7) === selectedMonth)
+                                ) ||
+                                payments.find(
+                                  (p) =>
+                                    p.studentId === item.studentId &&
+                                    (p.groupId === item.groupId || !p.groupId)
+                                );
+
+                              const paymentObjForDelete: Payment | null = matchingPayment || (item.paidAmount > 0 ? {
+                                paymentId: item.paymentId || `pay_${item.studentId}_${item.groupId}`,
+                                studentId: item.studentId,
+                                studentName: item.studentName,
+                                groupId: item.groupId,
+                                groupName: item.groupName,
+                                subjectId: "",
+                                amount: item.paidAmount,
+                                month: item.month || selectedMonth,
+                                paymentDate: item.lastPaymentDate || new Date().toISOString().slice(0, 10),
+                                paymentMethod: "Naqd",
+                                adminId: user?.uid || "",
+                                adminName: user?.displayName || "Admin",
+                                receiptNumber: item.receiptNumber || "CHEK",
+                                status: "PAID" as const,
+                                createdAt: new Date().toISOString(),
+                                updatedAt: new Date().toISOString(),
+                              } : null);
+
+                              return (
+                                <>
+                                  {matchingPayment && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setReceiptPayment(matchingPayment)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-brand-300 hover:bg-brand-600 hover:text-white transition-all border border-slate-700/60"
+                                      title="Kvitansiyani ko'rish"
+                                    >
+                                      <Printer className="w-3.5 h-3.5" /> Chek
+                                    </button>
+                                  )}
+
+                                  {paymentObjForDelete && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setPaymentToDelete(paymentObjForDelete)}
+                                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white transition-all border border-rose-500/40 shadow-sm"
+                                      title="To'lovni o'chirish (Admin va Direktor)"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-rose-400 group-hover:text-white" />
+                                      <span>O'chirish</span>
+                                    </button>
+                                  )}
+
+                                  {!isPaid && (
+                                    <Button
+                                      size="sm"
+                                      variant="primary"
+                                      onClick={() => handleOpenPaymentForStudent(item)}
+                                      leftIcon={<Plus className="w-3.5 h-3.5" />}
+                                    >
+                                      To'lov olish
+                                    </Button>
+                                  )}
+                                </>
+                              );
+                            })()}
                           </div>
                         </td>
                       </tr>
@@ -710,9 +789,10 @@ export const AdminPaymentsPage: React.FC = () => {
                           {p.status}
                         </span>
                       </td>
-                      <td className="p-3.5 text-right">
+                      <td className="p-3.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           <button
+                            type="button"
                             onClick={() => setReceiptPayment(p)}
                             className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-brand-300 hover:bg-brand-600 hover:text-white transition-all border border-slate-700/60"
                             title="Kvitansiyani chop etish"
@@ -720,11 +800,13 @@ export const AdminPaymentsPage: React.FC = () => {
                             <Printer className="w-3.5 h-3.5" /> Chop etish
                           </button>
                           <button
+                            type="button"
                             onClick={() => setPaymentToDelete(p)}
-                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors"
-                            title="To'lovni o'chirish"
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold bg-rose-500/20 text-rose-300 hover:bg-rose-600 hover:text-white transition-all border border-rose-500/40 shadow-sm"
+                            title="To'lovni o'chirish (Admin va Direktor)"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5 text-rose-400 group-hover:text-white" />
+                            <span>O'chirish</span>
                           </button>
                         </div>
                       </td>
@@ -847,6 +929,59 @@ export const AdminPaymentsPage: React.FC = () => {
             )}
           </div>
 
+          {/* If student is enrolled in multiple groups, show quick selector cards */}
+          {selectedStudentId && (
+            (() => {
+              const studentGroups = groups.filter(
+                (g) =>
+                  (Array.isArray(g.studentIds) && g.studentIds.includes(selectedStudentId)) ||
+                  (Array.isArray(selectedStudentObj?.enrolledGroups) &&
+                    selectedStudentObj.enrolledGroups.some((eg) => eg.groupId === g.groupId))
+              );
+              if (studentGroups.length === 0) return null;
+              return (
+                <div className="space-y-1.5 p-3 rounded-xl bg-slate-800/60 border border-slate-700/80">
+                  <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                    <span>O'quvchi o'qiydigan guruhlar ({studentGroups.length} ta):</span>
+                    <span className="text-amber-400 font-normal">To'lov uchun guruhni tanlang</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    {studentGroups.map((sg) => {
+                      const isSelected = selectedGroupId === sg.groupId;
+                      const teacherName = sg.teacherName || teachers.find((t) => t.uid === sg.teacherId)?.displayName || "Ustoz";
+                      return (
+                        <button
+                          key={sg.groupId}
+                          type="button"
+                          onClick={() => {
+                            setSelectedGroupId(sg.groupId);
+                            if (sg.monthlyPrice) setAmount(sg.monthlyPrice);
+                          }}
+                          className={`p-2.5 rounded-xl border text-left transition-all ${
+                            isSelected
+                              ? "bg-brand-500/20 border-brand-500 ring-2 ring-brand-500/40 text-white font-bold"
+                              : "bg-slate-900/80 border-slate-700/80 hover:border-slate-600 text-slate-300"
+                          }`}
+                        >
+                          <div className="text-xs font-bold text-white flex items-center justify-between">
+                            <span>{sg.name}</span>
+                            {isSelected && <span className="text-[10px] text-brand-400 uppercase font-black">✓ Tanlandi</span>}
+                          </div>
+                          <div className="text-[10.5px] text-amber-400 mt-0.5">
+                            Ustoz: {teacherName}
+                          </div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            Oylik: {formatNumber(sg.monthlyPrice || 500000)} UZS
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()
+          )}
+
           {/* Group Picker */}
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1">Guruh</label>
@@ -862,13 +997,33 @@ export const AdminPaymentsPage: React.FC = () => {
               required
             >
               <option value="">Guruhni tanlang</option>
-              {groups.map((g) => (
-                <option key={g.groupId} value={g.groupId}>
-                  {g.name} ({formatNumber(g.monthlyPrice || 500000)} UZS)
-                </option>
-              ))}
+              {groups.map((g) => {
+                const isStudentGroup =
+                  selectedStudentId &&
+                  ((Array.isArray(g.studentIds) && g.studentIds.includes(selectedStudentId)) ||
+                    (Array.isArray(selectedStudentObj?.enrolledGroups) &&
+                      selectedStudentObj.enrolledGroups.some((eg) => eg.groupId === g.groupId)));
+                return (
+                  <option key={g.groupId} value={g.groupId}>
+                    {isStudentGroup ? "⭐ " : ""}{g.name} ({formatNumber(g.monthlyPrice || 500000)} UZS)
+                  </option>
+                );
+              })}
             </select>
           </div>
+
+          {selectedGroupId && (
+            (() => {
+              const selGroup = groups.find((g) => g.groupId === selectedGroupId);
+              const tName = selGroup?.teacherName || teachers.find((t) => t.uid === selGroup?.teacherId)?.displayName;
+              if (!tName) return null;
+              return (
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-[11px] flex items-center gap-2 font-medium">
+                  <span>👨‍🏫 Biriktirilgan o'qituvchi: <strong>{tName}</strong> (to'lov o'qituvchi oyligiga avtomatik qo'shiladi)</span>
+                </div>
+              );
+            })()
+          )}
 
           <div className="grid grid-cols-2 gap-3">
             <Input
@@ -897,18 +1052,36 @@ export const AdminPaymentsPage: React.FC = () => {
             />
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1">
-                To'lov holati
+                To'lov usuli
               </label>
               <select
-                value={paymentStatus}
-                onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-brand-500"
               >
-                <option value="PAID">To'liq to'landi (PAID)</option>
-                <option value="PARTIAL">Qisman to'lov (PARTIAL)</option>
-                <option value="DEBT">Qarzdorlik (DEBT)</option>
+                <option value="Naqd">Naqd pul</option>
+                <option value="Karta">Plastik karta</option>
+                <option value="Payme">Payme</option>
+                <option value="Click">Click</option>
+                <option value="Uzum">Uzum Bank</option>
+                <option value="Bank">Bank o'tkazmasi</option>
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              To'lov holati
+            </label>
+            <select
+              value={paymentStatus}
+              onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
+              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-brand-500"
+            >
+              <option value="PAID">To'liq to'landi (PAID)</option>
+              <option value="PARTIAL">Qisman to'lov (PARTIAL)</option>
+              <option value="DEBT">Qarzdorlik (DEBT)</option>
+            </select>
           </div>
 
           <Input

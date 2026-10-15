@@ -7,6 +7,7 @@ import {
   updateDoc,
   query,
   where,
+  increment,
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "../lib/firebase";
@@ -670,6 +671,30 @@ export const homeworkService = {
           }
         }
       } catch {}
+    }
+
+    // 5. Award coins (Tillo) to the student according to the awarded score!
+    if (studentId && score > 0) {
+      try {
+        const studentRef = doc(db, "users", studentId);
+        await updateDoc(studentRef, {
+          coinBalance: increment(score),
+          updatedAt: serverTimestamp(),
+        });
+
+        // Record coin transaction in coin_transactions
+        const txId = `tx_hw_${Date.now()}_${studentId}`;
+        await setDoc(doc(db, "coin_transactions", txId), {
+          transactionId: txId,
+          userId: studentId,
+          amount: score,
+          type: "homework_reward",
+          description: `Uy vazifasi baholandi (+${score} Tillo tangasi)`,
+          createdAt: serverTimestamp(),
+        });
+      } catch (err: any) {
+        console.warn("Coin award for homework warning:", err?.message);
+      }
     }
   },
 };

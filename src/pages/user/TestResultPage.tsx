@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import {
   Trophy,
@@ -62,6 +62,13 @@ export const TestResultPage: React.FC = () => {
   const earnedCoins = resultData ? resultData.earnedCoins : sessionDoc?.earnedCoins || 0;
   const isPassed = score >= 60;
 
+  const attemptNumber = resultData?.attemptNumber || (sessionDoc as any)?.attemptNumber || 1;
+  const pointsPerCorrect = resultData?.pointsPerCorrect !== undefined
+    ? resultData.pointsPerCorrect
+    : (sessionDoc as any)?.pointsPerCorrect !== undefined
+    ? (sessionDoc as any)?.pointsPerCorrect
+    : (attemptNumber === 1 ? 1 : attemptNumber === 2 ? 0.5 : attemptNumber === 3 ? 0.3 : 0);
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-16">
       {/* Result Hero Banner */}
@@ -104,14 +111,20 @@ export const TestResultPage: React.FC = () => {
               </span>
             </div>
 
-            {earnedCoins > 0 && (
-              <div className="px-6 py-3 rounded-2xl bg-white/10 backdrop-blur-md">
-                <span className="block text-xs uppercase tracking-wider font-semibold opacity-75">
-                  Mukofot
-                </span>
-                <span className="text-2xl font-black text-amber-300">+{earnedCoins} Tillo</span>
-              </div>
-            )}
+            <div className="px-6 py-3 rounded-2xl bg-white/10 backdrop-blur-md">
+              <span className="block text-xs uppercase tracking-wider font-semibold opacity-75">
+                Urinish va Mukofot
+              </span>
+              <span className="text-2xl font-black text-amber-300">
+                {earnedCoins > 0 ? `+${earnedCoins} ball` : "0 ball"}
+              </span>
+              <span className="block text-[11px] font-semibold opacity-90 mt-1">
+                {attemptNumber === 1 && "1-urinish (har bir testga 1 balldan)"}
+                {attemptNumber === 2 && "2-urinish (har bir testga 0.5 balldan)"}
+                {attemptNumber === 3 && "3-urinish (har bir testga 0.3 balldan)"}
+                {attemptNumber >= 4 && `${attemptNumber}-urinish (ball berilmaydi)`}
+              </span>
+            </div>
           </div>
         </div>
       </div>

@@ -80,3 +80,53 @@ export function getErrorMessage(error: any): string {
   }
   return "Noma'lum xatolik yuz berdi";
 }
+
+export function numberToWordsUzbek(num: number): string {
+  if (!num || isNaN(num) || num <= 0) return "nol so'm";
+
+  const ones = ["", "bir", "ikki", "uch", "to'rt", "besh", "olti", "yetti", "sakkiz", "to'qqiz"];
+  const tens = ["", "o'n", "yigirma", "o'ttiz", "qirq", "ellik", "oltmish", "yetmish", "sakson", "to'qson"];
+
+  function convertGroup(n: number): string {
+    const parts: string[] = [];
+    const hundreds = Math.floor(n / 100);
+    const rest = n % 100;
+    const ten = Math.floor(rest / 10);
+    const one = rest % 10;
+
+    if (hundreds > 0) {
+      if (hundreds === 1) parts.push("bir yuz");
+      else parts.push(`${ones[hundreds]} yuz`);
+    }
+    if (ten > 0) {
+      parts.push(tens[ten]);
+    }
+    if (one > 0) {
+      parts.push(ones[one]);
+    }
+    return parts.join(" ");
+  }
+
+  const rounded = Math.round(num);
+  const billions = Math.floor(rounded / 1000000000);
+  const millions = Math.floor((rounded % 1000000000) / 1000000);
+  const thousands = Math.floor((rounded % 1000000) / 1000);
+  const remainder = rounded % 1000;
+
+  const resultParts: string[] = [];
+
+  if (billions > 0) {
+    resultParts.push(`${convertGroup(billions)} milliard`);
+  }
+  if (millions > 0) {
+    resultParts.push(`${convertGroup(millions)} million`);
+  }
+  if (thousands > 0) {
+    resultParts.push(`${convertGroup(thousands)} ming`);
+  }
+  if (remainder > 0) {
+    resultParts.push(convertGroup(remainder));
+  }
+
+  return (resultParts.join(" ") + " so'm").trim();
+}

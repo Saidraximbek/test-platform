@@ -157,7 +157,7 @@ export const DirectorDashboardPage: React.FC = () => {
       {/* Primary Financial Overview Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Monthly Revenue (Tushum) */}
-        <Link to="/admin/payments" className="block group">
+        <Link to="/director/payments" className="block group">
           <Card className="p-5 bg-slate-900/90 border-emerald-500/30 group-hover:border-emerald-500/60 transition-all h-full flex flex-col justify-between">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">

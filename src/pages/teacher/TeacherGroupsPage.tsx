@@ -14,10 +14,13 @@ import {
   Eye,
   GraduationCap,
   Sparkles,
+  Trophy,
+  Crown,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../context/ToastContext";
 import { groupService } from "../../services/groupService";
+import { leaderboardService } from "../../services/leaderboardService";
 import { Group, UserProfile } from "../../types";
 import { Button } from "../../components/common/Button";
 import { Card } from "../../components/common/Card";
@@ -37,6 +40,26 @@ export const TeacherGroupsPage: React.FC = () => {
   const [selectedGroupForRoster, setSelectedGroupForRoster] = useState<Group | null>(null);
   const [groupStudents, setGroupStudents] = useState<UserProfile[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
+
+  // Group Coins Leaderboard Modal State
+  const [selectedGroupForLeaderboard, setSelectedGroupForLeaderboard] = useState<Group | null>(null);
+  const [groupCoinsLeaderboard, setGroupCoinsLeaderboard] = useState<any[]>([]);
+  const [totalGroupCoins, setTotalGroupCoins] = useState<number>(0);
+  const [loadingGroupLeaderboard, setLoadingGroupLeaderboard] = useState(false);
+
+  const openGroupCoinsLeaderboard = async (grp: Group) => {
+    setSelectedGroupForLeaderboard(grp);
+    try {
+      setLoadingGroupLeaderboard(true);
+      const res = await leaderboardService.getGroupCoinsLeaderboard(grp.groupId);
+      setGroupCoinsLeaderboard(res.rankings || []);
+      setTotalGroupCoins(res.totalGroupCoins || 0);
+    } catch (err: any) {
+      toastError(err.message || "Guruh reytingini yuklab bo'lmadi");
+    } finally {
+      setLoadingGroupLeaderboard(false);
+    }
+  };
 
   const loadData = async () => {
     if (!user?.uid) return;
@@ -251,16 +274,29 @@ export const TeacherGroupsPage: React.FC = () => {
                 </div>
 
                 {/* Card Actions */}
-                <div className="pt-4 mt-4 border-t border-slate-800 flex items-center justify-between gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openStudentRoster(grp)}
-                    leftIcon={<Eye className="w-3.5 h-3.5" />}
-                    className="text-xs"
-                  >
-                    O'quvchilar
-                  </Button>
+                <div className="pt-4 mt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openStudentRoster(grp)}
+                      leftIcon={<Eye className="w-3.5 h-3.5" />}
+                      className="text-xs"
+                    >
+                      O'quvchilar
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => openGroupCoinsLeaderboard(grp)}
+                      leftIcon={<Trophy className="w-3.5 h-3.5 text-amber-400" />}
+                      className="text-xs bg-amber-500/10 border-amber-500/30 text-amber-300 hover:bg-amber-500/20"
+                      title="Guruh o'quvchilarining tillolar bo'yicha reytingi (Liderboard)"
+                    >
+                      Tillo Reytingi
+                    </Button>
+                  </div>
 
                   <div className="flex items-center gap-1.5">
                     <Link to={`/teacher/attendance?groupId=${grp.groupId}`}>
@@ -332,6 +368,143 @@ export const TeacherGroupsPage: React.FC = () => {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal: Group Coins Leaderboard */}
+      <Modal
+        isOpen={Boolean(selectedGroupForLeaderboard)}
+        onClose={() => setSelectedGroupForLeaderboard(null)}
+        title={selectedGroupForLeaderboard ? `🏆 ${selectedGroupForLeaderboard.name} - Tillo Liderboardi` : ""}
+        maxWidth="lg"
+      >
+        {selectedGroupForLeaderboard && (
+          <div className="space-y-4 max-h-[80vh] overflow-y-auto pr-1">
+            <div className="p-3 bg-gradient-to-r from-amber-500/15 via-slate-800 to-slate-800 border border-amber-500/30 rounded-2xl flex items-center justify-between text-xs">
+              <span className="text-slate-300">
+                O'quvchilar soni: <strong className="text-white">{groupCoinsLeaderboard.length} nafar</strong>
+              </span>
+              <span className="text-amber-300 font-bold flex items-center gap-1">
+                Jami: <strong className="text-amber-400 text-sm font-black">{totalGroupCoins}</strong> Tillo
+              </span>
+            </div>
+
+            {loadingGroupLeaderboard ? (
+              <div className="flex justify-center py-12">
+                <Spinner size="md" className="text-amber-500" />
+              </div>
+            ) : groupCoinsLeaderboard.length === 0 ? (
+              <div className="p-8 text-center bg-slate-800/40 rounded-2xl text-xs text-slate-400">
+                Ushbu guruhda hali o'quvchilar mavjud emas
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {/* Top 3 Podium (agar kamida 2 ta o'quvchi bo'lsa) */}
+                {groupCoinsLeaderboard.length >= 2 && (
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    {/* Rank 2 (Silver) */}
+                    <div className="p-2.5 rounded-xl bg-slate-800/90 border border-slate-700 text-center flex flex-col items-center justify-end translate-y-2">
+                      <div className="w-5 h-5 rounded-full bg-slate-300 text-slate-900 font-black text-[10px] flex items-center justify-center mb-1">
+                        2
+                      </div>
+                      <span className="text-xs font-bold text-white truncate max-w-full">
+                        {groupCoinsLeaderboard[1]?.displayName}
+                      </span>
+                      <span className="text-xs font-black text-amber-400 mt-0.5">
+                        {groupCoinsLeaderboard[1]?.coinBalance} 🪙
+                      </span>
+                    </div>
+
+                    {/* Rank 1 (Gold) */}
+                    <div className="p-3 rounded-xl bg-amber-500/15 border-2 border-amber-400/60 text-center flex flex-col items-center justify-end shadow-md shadow-amber-500/10">
+                      <Crown className="w-4 h-4 text-amber-400 mb-0.5 animate-bounce" />
+                      <div className="w-6 h-6 rounded-full bg-amber-500 text-slate-950 font-black text-xs flex items-center justify-center mb-1">
+                        1
+                      </div>
+                      <span className="text-xs font-extrabold text-white truncate max-w-full">
+                        {groupCoinsLeaderboard[0]?.displayName}
+                      </span>
+                      <span className="text-sm font-black text-amber-400 mt-0.5">
+                        {groupCoinsLeaderboard[0]?.coinBalance} 🪙
+                      </span>
+                    </div>
+
+                    {/* Rank 3 (Bronze) */}
+                    <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-900/40 text-center flex flex-col items-center justify-end translate-y-3">
+                      <div className="w-5 h-5 rounded-full bg-amber-700 text-white font-black text-[10px] flex items-center justify-center mb-1">
+                        3
+                      </div>
+                      <span className="text-xs font-bold text-white truncate max-w-full">
+                        {groupCoinsLeaderboard[2]?.displayName || "-"}
+                      </span>
+                      <span className="text-xs font-black text-amber-400 mt-0.5">
+                        {groupCoinsLeaderboard[2] ? `${groupCoinsLeaderboard[2].coinBalance} 🪙` : "-"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* To'liq ro'yxat */}
+                <div className="space-y-2 pt-2">
+                  <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                    Guruh O'quvchilari Reytingi
+                  </h5>
+                  {groupCoinsLeaderboard.map((st, idx) => {
+                    const isTop1 = idx === 0;
+                    const isTop2 = idx === 1;
+                    const isTop3 = idx === 2;
+
+                    return (
+                      <div
+                        key={st.userId || idx}
+                        className={`p-3 rounded-xl border flex items-center justify-between gap-3 text-xs ${
+                          isTop1
+                            ? "bg-amber-500/10 border-amber-500/40"
+                            : isTop2
+                            ? "bg-slate-800/80 border-slate-700"
+                            : isTop3
+                            ? "bg-amber-950/20 border-amber-900/40"
+                            : "bg-slate-900/60 border-slate-800"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                              isTop1
+                                ? "bg-amber-500 text-slate-950"
+                                : isTop2
+                                ? "bg-slate-300 text-slate-900"
+                                : isTop3
+                                ? "bg-amber-700 text-white"
+                                : "bg-slate-800 text-slate-400"
+                            }`}
+                          >
+                            {idx + 1}
+                          </div>
+                          <div>
+                            <h6 className="font-bold text-white">{st.displayName || "O'quvchi"}</h6>
+                            <span className="text-[11px] text-slate-400">
+                              {st.testsCompleted} ta test topshirgan
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                          <CoinBadge amount={st.coinBalance || 0} size="sm" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <Button variant="outline" size="sm" onClick={() => setSelectedGroupForLeaderboard(null)}>
+                Yopish
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

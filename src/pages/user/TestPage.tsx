@@ -85,12 +85,36 @@ export const TestPage: React.FC = () => {
   const [showAbandonModal, setShowAbandonModal] = useState<boolean>(false);
 
   // Load session if not passed via state
+  const answersRef = useRef<Record<string, string>>(answers);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
   useEffect(() => {
     if (sessionData) {
       setLoading(false);
       return;
     }
     if (!sessionId) return;
+
+    const parseIsoDate = (raw: any, fallbackMs = 0) => {
+      if (!raw) return new Date(Date.now() + fallbackMs).toISOString();
+      if (typeof raw === "string") {
+        const d = new Date(raw);
+        return isNaN(d.getTime()) ? new Date(Date.now() + fallbackMs).toISOString() : d.toISOString();
+      }
+      if (typeof raw.toDate === "function") {
+        return raw.toDate().toISOString();
+      }
+      if (raw._seconds) {
+        return new Date(raw._seconds * 1000).toISOString();
+      }
+      if (raw instanceof Date) {
+        return raw.toISOString();
+      }
+      const d = new Date(raw);
+      return isNaN(d.getTime()) ? new Date(Date.now() + fallbackMs).toISOString() : d.toISOString();
+    };
 
     const fetchSession = async () => {
       try {
@@ -108,14 +132,20 @@ export const TestPage: React.FC = () => {
         }
 
         setAnswers(sess.answers || {});
-        setSessionData({
-          sessionId: sess.sessionId,
-          subjectId: sess.subjectId,
-          levelId: sess.levelId,
-          startedAt: sess.startedAt ? sess.startedAt.toDate?.()?.toISOString() : new Date().toISOString(),
-          expiresAt: sess.expiresAt ? sess.expiresAt.toDate?.()?.toISOString() : new Date().toISOString(),
-          configSnapshot: sess.configSnapshot,
-          questions: sess.questionIds.map((qId, idx) => ({
+
+        const sessAny = sess as any;
+        let loadedQuestions: SafeTestQuestion[] = [];
+
+        if (Array.isArray(sessAny.questionsData) && sessAny.questionsData.length > 0) {
+          loadedQuestions = sessAny.questionsData.map((q: any) => ({
+            questionId: q.questionId || q.id || q._id,
+            text: q.text || "Savol matni",
+            imageUrl: q.imageUrl || null,
+            options: q.options || [],
+            difficulty: q.difficulty || 1,
+          }));
+        } else if (Array.isArray(sess.questionIds) && sess.questionIds.length > 0) {
+          loadedQuestions = sess.questionIds.map((qId, idx) => ({
             questionId: qId,
             text: `Savol #${idx + 1}`,
             imageUrl: null,
@@ -126,7 +156,22 @@ export const TestPage: React.FC = () => {
               { id: "D", text: "Variant D" },
             ],
             difficulty: 2,
-          })),
+          }));
+        }
+
+        const durationMinutes = sess.configSnapshot?.durationMinutes || 40;
+        const startedIso = parseIsoDate(sess.startedAt);
+        const expiresIso = parseIsoDate(sess.expiresAt, durationMinutes * 60 * 1000);
+
+        setSessionData({
+          sessionId: sess.sessionId,
+          subjectId: sess.subjectId,
+          levelId: sess.levelId,
+          startedAt: startedIso,
+          expiresAt: expiresIso,
+          configSnapshot: sess.configSnapshot,
+          questions: loadedQuestions,
+          attemptNumber: sessAny.attemptNumber || 1,
         });
       } catch (err: any) {
         toastError(err.message || "Sessiyani yuklashda xatolik");
@@ -177,15 +222,17 @@ export const TestPage: React.FC = () => {
     sound.playOptionSelect();
     const updated = { ...answers, [questionId]: optionId };
     setAnswers(updated);
+    answersRef.current = updated;
     syncAnswersToFirestore(updated);
   };
 
-  const handleSubmitTest = async () => {
+  const handleSubmitTest = useCallback(async () => {
     if (!sessionId) return;
     flushAnswersToFirestore();
     setIsSubmitting(true);
     try {
-      const result = await testService.submitTest(sessionId, answers);
+      const currentAnswers = answersRef.current;
+      const result = await testService.submitTest(sessionId, currentAnswers);
       sound.playSuccess();
       navigate(`/test/${sessionId}/result`, { state: { resultData: result } });
     } catch (err: any) {
@@ -193,14 +240,14 @@ export const TestPage: React.FC = () => {
       setIsSubmitting(false);
       setShowSubmitModal(false);
     }
-  };
+  }, [sessionId, flushAnswersToFirestore, navigate, toastError]);
 
   const handleTimeUp = useCallback(() => {
     if (!isSubmitting && sessionId) {
       warning("Vaqt tugadi! Test avtomatik tarzda yakunlanmoqda...");
       handleSubmitTest();
     }
-  }, [isSubmitting, sessionId]);
+  }, [isSubmitting, sessionId, warning, handleSubmitTest]);
 
   const handleAbandonTest = async () => {
     if (!sessionId) return;

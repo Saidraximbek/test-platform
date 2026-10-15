@@ -1,6 +1,6 @@
-﻿import * as functions from "firebase-functions";
+import * as functions from "firebase-functions";
 import { auth, db, Timestamp } from "../config/firebase";
-import { requireAdmin, validateInput } from "../middleware/auth";
+import { requireAdmin, validateInput, isCallerRootOwner } from "../middleware/auth";
 import { SetAdminRoleSchema, SetUserStatusSchema } from "../schemas";
 import { UserDoc } from "../types";
 import { createAuditLog } from "../utils/audit";
@@ -18,6 +18,9 @@ export const setUserStatus = functions.https.onCall(async (data, context) => {
   }
 
   const prevUser = userSnap.data() as UserDoc;
+  if (prevUser.role === "root_owner" && !isCallerRootOwner(context, adminUser)) {
+    throw new functions.https.HttpsError("permission-denied", "Root Owner hisobini to'xtatish yoki bloklash taqiqlangan");
+  }
   const now = Timestamp.now();
 
   await db.runTransaction(async (t) => {
@@ -85,6 +88,10 @@ export const setAdminRole = functions.https.onCall(async (data, context) => {
   // Update Firebase Custom Claims (authoritative)
   const userRecord = await auth.getUser(targetUid);
   const currentClaims = userRecord.customClaims || {};
+
+  if ((currentClaims.role === "root_owner" || currentClaims.rootOwner === true) && !isCallerRootOwner(context, adminUser)) {
+    throw new functions.https.HttpsError("permission-denied", "Root Owner hisobining rolini o'zgartirish taqiqlangan");
+  }
 
   await auth.setCustomUserClaims(targetUid, {
     ...currentClaims,

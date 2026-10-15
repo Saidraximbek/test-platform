@@ -13,6 +13,9 @@ import {
   GraduationCap,
   User,
   Filter,
+  Eye,
+  EyeOff,
+  Key,
 } from "lucide-react";
 import { adminService } from "../../services/adminService";
 import { coinService } from "../../services/coinService";
@@ -34,6 +37,11 @@ export const DirectorUsersPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (uid: string) => {
+    setVisiblePasswords((prev) => ({ ...prev, [uid]: !prev[uid] }));
+  };
 
   // Role Modal (Exclusive Director Privilege)
   const [roleModalUser, setRoleModalUser] = useState<UserProfile | null>(null);
@@ -332,6 +340,7 @@ export const DirectorUsersPage: React.FC = () => {
               <thead className="bg-slate-800/60 text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800 font-extrabold">
                 <tr>
                   <th className="p-4">Foydalanuvchi</th>
+                  <th className="p-4">Login & Parol</th>
                   <th className="p-4">Aloqa & Sana</th>
                   <th className="p-4">Holat</th>
                   <th className="p-4">Tangalar</th>
@@ -341,6 +350,10 @@ export const DirectorUsersPage: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-slate-800/50 font-medium">
                 {filteredUsers.map((u) => {
+                  const loginStr = u.login || u.email?.split("@")[0] || u.email || "-";
+                  const passStr = u.plainPassword;
+                  const isPassVisible = Boolean(visiblePasswords[u.uid]);
+
                   return (
                     <tr key={u.uid} className="hover:bg-slate-800/30 transition-colors">
                       <td className="p-4">
@@ -354,6 +367,27 @@ export const DirectorUsersPage: React.FC = () => {
                               {u.educationPlace || "Ta'lim muassasasi kiritilmagan"}
                             </p>
                           </div>
+                        </div>
+                      </td>
+
+                      <td className="p-4">
+                        <div className="flex items-center gap-1.5 font-mono text-white text-[11px] font-bold">
+                          <span>{loginStr}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[11px] text-amber-400">
+                            {isPassVisible ? (passStr || "Belgilanmagan") : "••••••"}
+                          </span>
+                          {passStr && (
+                            <button
+                              type="button"
+                              onClick={() => togglePasswordVisibility(u.uid)}
+                              className="text-slate-400 hover:text-white transition-colors"
+                              title={isPassVisible ? "Parolni yashirish" : "Parolni ko'rsatish"}
+                            >
+                              {isPassVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
                         </div>
                       </td>
 

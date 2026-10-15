@@ -66,7 +66,7 @@ export const BlockedAccountScreen: React.FC = () => {
 };
 
 export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { firebaseUser, user, isAdmin, isTeacher, isDirector, loading, isBlocked, isSuspended } = useAuth();
+  const { firebaseUser, user, isRootOwner, isAdmin, isTeacher, isDirector, loading, isBlocked, isSuspended } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -87,6 +87,11 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   }
 
   // STRICT ROLE ISOLATION:
+  // Root Owner redirects to /root
+  if (isRootOwner || user?.role === "root_owner") {
+    return <Navigate to="/root" replace />;
+  }
+
   // Director only sees Director portal
   if (isDirector || user?.role === "director") {
     return <Navigate to="/director" replace />;
@@ -106,8 +111,35 @@ export const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ childr
   return <>{children}</>;
 };
 
+export const RootOwnerRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { firebaseUser, user, isRootOwner, loading, isBlocked, isSuspended } = useAuth();
+  const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <Spinner size="lg" className="text-brand-600" />
+      </div>
+    );
+  }
+
+  if (!firebaseUser) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (isBlocked || isSuspended || user?.status === "blocked" || user?.status === "suspended") {
+    return <BlockedAccountScreen />;
+  }
+
+  if (!isRootOwner && user?.role !== "root_owner") {
+    return <Navigate to="/dashboard" state={{ from: location }} replace />;
+  }
+
+  return <>{children}</>;
+};
+
 export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { firebaseUser, user, isAdmin, isDirector, loading, isBlocked, isSuspended } = useAuth();
+  const { firebaseUser, user, isRootOwner, isAdmin, isDirector, loading, isBlocked, isSuspended } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -127,8 +159,8 @@ export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }
     return <BlockedAccountScreen />;
   }
 
-  // Direktor va Admin ikkalasi ham admin bo'limlariga to'liq kira oladi
-  if (!isAdmin && !isDirector) {
+  // Root Owner, Direktor va Admin bo'limga to'liq kira oladi
+  if (!isAdmin && !isDirector && !isRootOwner && user?.role !== "root_owner") {
     return <Navigate to="/dashboard" state={{ from: location }} replace />;
   }
 
@@ -136,7 +168,7 @@ export const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }
 };
 
 export const DirectorRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { firebaseUser, user, isDirector, loading, isBlocked, isSuspended } = useAuth();
+  const { firebaseUser, user, isRootOwner, isDirector, loading, isBlocked, isSuspended } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -156,7 +188,7 @@ export const DirectorRoute: React.FC<{ children: React.ReactNode }> = ({ childre
     return <BlockedAccountScreen />;
   }
 
-  if (!isDirector) {
+  if (!isDirector && !isRootOwner && user?.role !== "root_owner") {
     return <Navigate to="/dashboard" state={{ from: location }} replace />;
   }
 

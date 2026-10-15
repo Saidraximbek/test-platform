@@ -99,8 +99,8 @@ export const StudentLessonsPage: React.FC = () => {
           } catch (e) {}
         }
 
-        // Fallback: if student is assigned a teacher directly (user.teacherId)
-        if (list.length === 0 && (user as any)?.teacherId) {
+        // Fallback: if student is NOT in any group and assigned a teacher directly (user.teacherId)
+        if (list.length === 0 && stGroups.length === 0 && (user as any)?.teacherId) {
           try {
             const tLessons = await lessonService.getTeacherLessons((user as any).teacherId);
             tLessons.forEach((les) => {

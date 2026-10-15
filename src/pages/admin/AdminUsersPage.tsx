@@ -11,6 +11,9 @@ import {
   AlertTriangle,
   Crown,
   ArrowUpRight,
+  Eye,
+  EyeOff,
+  Key,
 } from "lucide-react";
 import { adminService } from "../../services/adminService";
 import { coinService } from "../../services/coinService";
@@ -33,6 +36,11 @@ export const AdminUsersPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
+
+  const togglePasswordVisibility = (uid: string) => {
+    setVisiblePasswords((prev) => ({ ...prev, [uid]: !prev[uid] }));
+  };
 
   // Status Change Modal
   const [statusModalUser, setStatusModalUser] = useState<UserProfile | null>(null);
@@ -182,6 +190,7 @@ export const AdminUsersPage: React.FC = () => {
               <thead className="bg-slate-950 text-slate-400 uppercase tracking-wider font-bold text-[10px]">
                 <tr>
                   <th className="p-4">Foydalanuvchi</th>
+                  <th className="p-4">Login & Parol</th>
                   <th className="p-4">Aloqa / Maktab</th>
                   <th className="p-4">Balans</th>
                   <th className="p-4">Testlar</th>
@@ -194,6 +203,10 @@ export const AdminUsersPage: React.FC = () => {
                 {users.map((u, idx) => {
                   const uidStr = u.uid || `user-${idx}`;
                   const shortUid = uidStr.length > 10 ? `${uidStr.substring(0, 10)}...` : uidStr;
+                  const loginStr = u.login || u.email?.split("@")[0] || u.email || "-";
+                  const passStr = u.plainPassword;
+                  const isPassVisible = Boolean(visiblePasswords[uidStr]);
+
                   return (
                     <tr key={uidStr} className="hover:bg-slate-800/40 transition-colors">
                       <td className="p-4">
@@ -212,7 +225,28 @@ export const AdminUsersPage: React.FC = () => {
                         </div>
                       </td>
 
-                    <td className="p-4 text-slate-300">
+                      <td className="p-4">
+                        <div className="flex items-center gap-1.5 font-mono text-white text-[11px] font-bold">
+                          <span>{loginStr}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="font-mono text-[11px] text-amber-400">
+                            {isPassVisible ? (passStr || "Belgilanmagan") : "••••••"}
+                          </span>
+                          {passStr && (
+                            <button
+                              type="button"
+                              onClick={() => togglePasswordVisibility(uidStr)}
+                              className="text-slate-400 hover:text-white transition-colors"
+                              title={isPassVisible ? "Parolni yashirish" : "Parolni ko'rsatish"}
+                            >
+                              {isPassVisible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="p-4 text-slate-300">
                       <div>{u.phoneNumber || "-"}</div>
                       <div className="text-[10px] text-slate-500">{u.educationPlace || "-"}</div>
                     </td>

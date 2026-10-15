@@ -50,10 +50,10 @@ export const Navbar: React.FC = () => {
 
   const navLinks = [
     { name: "Bosh sahifa", href: "/dashboard", icon: LayoutDashboard },
+    { name: "Testlar", href: "/subjects", icon: FileCheck },
     { name: "Darslarim", href: "/lessons", icon: GraduationCap },
-    { name: "Uy vazifasi", href: "/homework", icon: FileCheck },
+    { name: "Uy vazifasi", href: "/homework", icon: BookOpen },
     { name: "Ustozga savol", href: "/questions/teacher", icon: MessageSquare },
-    { name: "Fanlar & Test", href: "/subjects", icon: BookOpen },
     { name: "Do'kon", href: "/shop", icon: ShoppingBag },
   ];
 
@@ -407,10 +407,10 @@ export const Navbar: React.FC = () => {
               </p>
               {[
                 { name: "Bosh sahifa", href: "/dashboard", icon: LayoutDashboard },
+                { name: "Testlar (Fanlar)", href: "/subjects", icon: FileCheck },
                 { name: "Darslarim", href: "/lessons", icon: GraduationCap },
-                { name: "Uy vazifasi", href: "/homework", icon: FileCheck },
+                { name: "Uy vazifasi", href: "/homework", icon: BookOpen },
                 { name: "Ustozga savol", href: "/questions/teacher", icon: MessageSquare },
-                { name: "Fanlar & Testlar", href: "/subjects", icon: BookOpen },
                 { name: "Tillo Do'kon", href: "/shop", icon: ShoppingBag },
                 { name: "Yetakchilar Reytingi", href: "/leaderboard", icon: Trophy },
                 { name: "Xaridlarim", href: "/orders", icon: Package },

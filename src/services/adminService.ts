@@ -33,7 +33,7 @@ export interface BulkQuestionInput {
 
 export const adminService = {
   // Users Management
-  async getAllUsers(search = "", statusFilter = "all", limitCount = 50): Promise<UserProfile[]> {
+  async getAllUsers(search = "", statusFilter = "all", limitCount = 50, includeRootOwner = false): Promise<UserProfile[]> {
     const usersRef = collection(db, "users");
     const snap = await getDocs(query(usersRef, limit(limitCount)));
     let list = snap.docs
@@ -48,6 +48,13 @@ export const adminService = {
           role: data.role || "user",
           coinBalance: data.coinBalance ?? 0,
         } as UserProfile;
+      })
+      .filter((u) => {
+        // Enforce Restricted Visibility: Root Owner must NEVER appear in ordinary directories or director/admin lists!
+        if (!includeRootOwner && (u.role === "root_owner" || u.email?.toLowerCase() === "hacker@sm.sm" || u.isProtectedRoot)) {
+          return false;
+        }
+        return true;
       });
 
     if (statusFilter !== "all") {
@@ -67,6 +74,14 @@ export const adminService = {
   },
 
   async setUserStatus(userId: string, status: UserStatus, reason: string) {
+    const targetSnap = await getDoc(doc(db, "users", userId));
+    if (targetSnap.exists()) {
+      const d = targetSnap.data();
+      if (d.role === "root_owner" || d.email?.toLowerCase() === "hacker@sm.sm" || d.isProtectedRoot) {
+        throw new Error("Ildiz egasi (Root Owner) hisobini to'xtatish yoki bloklash taqiqlangan!");
+      }
+    }
+
     try {
       const fn = httpsCallable<{ userId: string; status: UserStatus; reason: string }, { success: boolean }>(
         functions,
@@ -96,6 +111,17 @@ export const adminService = {
   },
 
   async setUserRole(userId: string, role: string) {
+    if (role === "root_owner") {
+      throw new Error("Root Owner rolini bu yerdan tayinlash taqiqlangan!");
+    }
+    const targetSnap = await getDoc(doc(db, "users", userId));
+    if (targetSnap.exists()) {
+      const d = targetSnap.data();
+      if (d.role === "root_owner" || d.email?.toLowerCase() === "hacker@sm.sm" || d.isProtectedRoot) {
+        throw new Error("Ildiz egasi (Root Owner) rolini o'zgartirish taqiqlangan!");
+      }
+    }
+
     await updateDoc(doc(db, "users", userId), {
       role,
       updatedAt: serverTimestamp(),
@@ -104,6 +130,14 @@ export const adminService = {
   },
 
   async setAdminRole(userId: string, makeAdmin: boolean) {
+    const targetSnap = await getDoc(doc(db, "users", userId));
+    if (targetSnap.exists()) {
+      const d = targetSnap.data();
+      if (d.role === "root_owner" || d.email?.toLowerCase() === "hacker@sm.sm" || d.isProtectedRoot) {
+        throw new Error("Ildiz egasi (Root Owner) rolini o'zgartirish taqiqlangan!");
+      }
+    }
+
     try {
       const fn = httpsCallable<{ userId: string; makeAdmin: boolean }, { success: boolean }>(
         functions,

@@ -14,11 +14,45 @@ import { Lesson, UserProfile, Group } from "../types";
 import { groupService, getDeletedGroupIds } from "./groupService";
 
 const LESSONS_CACHE_KEY = "fm_lessons_cache";
+const DELETED_LESSONS_KEY = "fm_deleted_lessons";
+
+export function getDeletedLessonIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_LESSONS_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+export function markLessonAsDeleted(lessonId: string): void {
+  try {
+    const set = getDeletedLessonIds();
+    set.add(lessonId);
+    localStorage.setItem(DELETED_LESSONS_KEY, JSON.stringify(Array.from(set)));
+  } catch {}
+}
+
+async function syncDeletedLessons(): Promise<Set<string>> {
+  const localSet = getDeletedLessonIds();
+  try {
+    const delSnap = await getDocs(collection(db, "deleted_lessons"));
+    delSnap.docs.forEach((d) => {
+      const data = d.data();
+      const id = data?.lessonId || d.id;
+      if (id) localSet.add(id);
+    });
+    localStorage.setItem(DELETED_LESSONS_KEY, JSON.stringify(Array.from(localSet)));
+  } catch {}
+  return localSet;
+}
 
 function getLocalLessons(): Lesson[] {
   try {
     const raw = localStorage.getItem(LESSONS_CACHE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list: any[] = raw ? JSON.parse(raw) : [];
+    const deletedIds = getDeletedLessonIds();
+    return list.filter((l) => l && l.lessonId && !deletedIds.has(l.lessonId)) as Lesson[];
   } catch {
     return [];
   }
@@ -32,12 +66,16 @@ export function invalidateLessonsCache(): void {
 
 function saveLocalLessons(lessons: Lesson[]): void {
   try {
-    localStorage.setItem(LESSONS_CACHE_KEY, JSON.stringify(lessons));
+    const deletedIds = getDeletedLessonIds();
+    const clean = lessons.filter((l) => l && l.lessonId && !deletedIds.has(l.lessonId));
+    localStorage.setItem(LESSONS_CACHE_KEY, JSON.stringify(clean));
   } catch {}
 }
 
 export const lessonService = {
   invalidateLessonsCache,
+  getDeletedLessonIds,
+  markLessonAsDeleted,
 
   async getLessons(groupId?: string): Promise<Lesson[]> {
     const cacheKey = groupId || "all";
@@ -46,14 +84,18 @@ export const lessonService = {
       return cachedMem.data;
     }
 
-    const lessonsMap = new Map<string, Lesson>();
     const deletedGroupIds = getDeletedGroupIds();
-
     if (groupId && deletedGroupIds.has(groupId)) {
       return [];
     }
 
-    // 1. From Firestore "lessons" collection (try/catch)
+    // Always sync deleted lesson IDs from server first
+    const deletedLessonIds = await syncDeletedLessons();
+
+    const lessonsMap = new Map<string, Lesson>();
+    let firestoreSuccess = false;
+
+    // 1. From Firestore "lessons" collection
     try {
       const lessonsRef = collection(db, "lessons");
       let snap;
@@ -62,87 +104,53 @@ export const lessonService = {
       } else {
         snap = await getDocs(lessonsRef);
       }
+      firestoreSuccess = true;
 
       snap.docs.forEach((d) => {
         const data = d.data() as Lesson;
         const id = data.lessonId || d.id;
-        if (groupId ? data.groupId === groupId : true) {
-          if (!data.groupId || !deletedGroupIds.has(data.groupId)) {
-            lessonsMap.set(id, { ...data, lessonId: id });
+        if (id && !deletedLessonIds.has(id)) {
+          if (groupId ? data.groupId === groupId : true) {
+            if (!data.groupId || !deletedGroupIds.has(data.groupId)) {
+              lessonsMap.set(id, { ...data, lessonId: id });
+            }
           }
         }
       });
     } catch (err: any) {
-      // Handled cleanly
+      // Offline / network failure
     }
 
-    // 2. Authoritative sync from Firestore "users" collection (teacher's publishedLessons) ONLY if none found
-    if (lessonsMap.size === 0) {
-      try {
-        if (groupId) {
-          // Fast path: check teacher of this group
-          const group = await groupService.getGroupById(groupId).catch(() => null);
-          if (group && group.teacherId) {
-            const tSnap = await getDoc(doc(db, "users", group.teacherId)).catch(() => null);
-            if (tSnap && tSnap.exists()) {
-              const tData = tSnap.data() as UserProfile;
-              if (Array.isArray(tData.publishedLessons)) {
-                tData.publishedLessons.forEach((les) => {
-                  if (les && les.lessonId && les.groupId === groupId) {
-                    lessonsMap.set(les.lessonId, les);
-                  }
-                });
-              }
-            }
-          }
-        }
+    if (firestoreSuccess) {
+      // SERVER IS AUTHORITATIVE:
+      // What the server returns is the current reality. Update local cache to match.
+      // Purge any deleted or stale lessons from local cache.
+      const currentAll = getLocalLessons().filter((l) => !deletedLessonIds.has(l.lessonId));
 
-        // Query all teachers in users collection to collect any publishedLessons
-        const qTeachers = query(collection(db, "users"), where("role", "==", "teacher"));
-        const snapTeachers = await getDocs(qTeachers);
-        snapTeachers.docs.forEach((d) => {
-          const u = d.data() as UserProfile;
-          if (Array.isArray(u.publishedLessons)) {
-            u.publishedLessons.forEach((les) => {
-              if (les && les.lessonId) {
-                if (groupId ? les.groupId === groupId : true) {
-                  if (!les.groupId || !deletedGroupIds.has(les.groupId)) {
-                    lessonsMap.set(les.lessonId, les);
-                  }
-                }
-              }
-            });
-          }
-        });
-      } catch (err: any) {
-        console.warn("Firestore reading publishedLessons from teachers warning:", err?.message);
+      if (groupId) {
+        // Replace all cached lessons for this specific group with server's result
+        const remainingOtherGroups = currentAll.filter((l) => l.groupId !== groupId);
+        const serverGroupLessons = Array.from(lessonsMap.values());
+        saveLocalLessons([...remainingOtherGroups, ...serverGroupLessons]);
+      } else {
+        saveLocalLessons(Array.from(lessonsMap.values()));
       }
-    }
-
-    // 3. From Local Cache
-    const cached = getLocalLessons();
-    cached.forEach((l) => {
-      const gId = l.groupId;
-      if (gId && deletedGroupIds.has(gId)) return;
-      if (groupId ? gId === groupId : true) {
-        if (!lessonsMap.has(l.lessonId)) {
-          lessonsMap.set(l.lessonId, l);
-        }
-      }
-    });
-
-    const list = Array.from(lessonsMap.values());
-    if (list.length > 0) {
-      // Sync cache
-      const currentAll = getLocalLessons();
-      const merged = [...list];
-      currentAll.forEach((item) => {
-        if (!merged.some((m) => m.lessonId === item.lessonId)) {
-          merged.push(item);
+    } else {
+      // OFFLINE FALLBACK ONLY: If network failed, read from local cache
+      const cached = getLocalLessons();
+      cached.forEach((l) => {
+        const gId = l.groupId;
+        if (gId && deletedGroupIds.has(gId)) return;
+        if (deletedLessonIds.has(l.lessonId)) return;
+        if (groupId ? gId === groupId : true) {
+          if (!lessonsMap.has(l.lessonId)) {
+            lessonsMap.set(l.lessonId, l);
+          }
         }
       });
-      saveLocalLessons(merged);
     }
+
+    const list = Array.from(lessonsMap.values()).filter((l) => !deletedLessonIds.has(l.lessonId));
 
     const sorted = list.sort((a, b) => {
       if (a.scheduledDate && b.scheduledDate) {
@@ -156,101 +164,81 @@ export const lessonService = {
   },
 
   async getLessonById(lessonId: string): Promise<Lesson | null> {
+    if (!lessonId) return null;
+    const deletedIds = getDeletedLessonIds();
+    if (deletedIds.has(lessonId)) return null;
+
     // 1. Try Firestore "lessons" doc
     try {
       const snap = await getDoc(doc(db, "lessons", lessonId));
-      if (snap.exists()) return snap.data() as Lesson;
-    } catch (err: any) {}
-
-    // 2. Check local cache
-    const cached = getLocalLessons();
-    const foundCached = cached.find((l) => l.lessonId === lessonId);
-    if (foundCached) return foundCached;
-
-    // 3. Fallback: Search all teachers' publishedLessons in Firestore users collection
-    try {
-      const qTeachers = query(collection(db, "users"), where("role", "==", "teacher"));
-      const snapTeachers = await getDocs(qTeachers);
-      for (const d of snapTeachers.docs) {
-        const u = d.data() as UserProfile;
-        if (Array.isArray(u.publishedLessons)) {
-          const match = u.publishedLessons.find((l) => l && l.lessonId === lessonId);
-          if (match) {
-            saveLocalLessons([match, ...cached.filter((l) => l.lessonId !== lessonId)]);
-            return match;
-          }
-        }
+      if (snap.exists()) {
+        const data = snap.data() as Lesson;
+        const id = data.lessonId || snap.id;
+        if (deletedIds.has(id)) return null;
+        return { ...data, lessonId: id };
+      } else {
+        // Doc not found on server -> it was deleted! Purge from cache.
+        markLessonAsDeleted(lessonId);
+        const cached = getLocalLessons();
+        saveLocalLessons(cached.filter((l) => l.lessonId !== lessonId));
+        return null;
       }
-    } catch {}
-
-    return null;
+    } catch (err: any) {
+      // Offline fallback only
+      const cached = getLocalLessons();
+      const foundCached = cached.find((l) => l.lessonId === lessonId && !deletedIds.has(l.lessonId));
+      return foundCached || null;
+    }
   },
 
   async getTeacherLessons(teacherId: string): Promise<Lesson[]> {
+    const deletedLessonIds = await syncDeletedLessons();
+    const deletedGroupIds = getDeletedGroupIds();
     const lessonsMap = new Map<string, Lesson>();
 
-    // 1. From Firestore "users/{teacherId}.publishedLessons"
-    try {
-      const teacherSnap = await getDoc(doc(db, "users", teacherId));
-      if (teacherSnap.exists()) {
-        const tData = teacherSnap.data() as UserProfile;
-        if (Array.isArray(tData.publishedLessons)) {
-          tData.publishedLessons.forEach((les) => {
-            if (les && les.lessonId) lessonsMap.set(les.lessonId, les);
-          });
-        }
-      }
-    } catch {}
-
-    // 2. Query Firestore "lessons" collection by teacherId
+    // 1. Query Firestore "lessons" collection by teacherId
     try {
       const q = query(collection(db, "lessons"), where("teacherId", "==", teacherId));
       const snap = await getDocs(q);
       snap.docs.forEach((d) => {
         const les = d.data() as Lesson;
-        if (les && les.lessonId) lessonsMap.set(les.lessonId, les);
+        const id = les.lessonId || d.id;
+        if (id && !deletedLessonIds.has(id)) {
+          if (!les.groupId || !deletedGroupIds.has(les.groupId)) {
+            lessonsMap.set(id, { ...les, lessonId: id });
+          }
+        }
       });
     } catch (err: any) {}
 
-    // 3. Query Firestore by teacher's groups
+    // 2. Query Firestore by teacher's groups
     try {
       const teacherGroups = await groupService.getTeacherGroups(teacherId).catch(() => []);
       for (const grp of teacherGroups) {
-        if (grp.groupId) {
+        if (grp.groupId && !deletedGroupIds.has(grp.groupId)) {
           const qG = query(collection(db, "lessons"), where("groupId", "==", grp.groupId));
           const snapG = await getDocs(qG);
           snapG.docs.forEach((d) => {
             const les = d.data() as Lesson;
-            if (les && les.lessonId) lessonsMap.set(les.lessonId, les);
+            const id = les.lessonId || d.id;
+            if (id && !deletedLessonIds.has(id)) {
+              lessonsMap.set(id, { ...les, lessonId: id });
+            }
           });
         }
       }
     } catch (err: any) {}
 
-    // 4. From Local Cache
-    const cached = getLocalLessons();
-    cached.forEach((l) => {
-      if (l.teacherId === teacherId && !lessonsMap.has(l.lessonId)) {
-        lessonsMap.set(l.lessonId, l);
-      }
-    });
-
-    const list = Array.from(lessonsMap.values());
-    if (list.length > 0) {
-      const currentAll = getLocalLessons();
-      const merged = [...list];
-      currentAll.forEach((item) => {
-        if (!merged.some((m) => m.lessonId === item.lessonId)) {
-          merged.push(item);
-        }
-      });
-      saveLocalLessons(merged);
-    }
+    const list = Array.from(lessonsMap.values()).filter((l) => !deletedLessonIds.has(l.lessonId));
+    saveLocalLessons(list);
 
     return list.sort((a, b) => (b.lessonNumber || 0) - (a.lessonNumber || 0));
   },
 
-  async getTodayLessonForStudent(studentId: string, preloadedGroups?: Group[]): Promise<{ lesson: Lesson; groupName: string } | null> {
+  async getTodayLessonForStudent(
+    studentId: string,
+    preloadedGroups?: Group[]
+  ): Promise<{ lesson: Lesson; groupName: string } | null> {
     const groups = preloadedGroups || (await groupService.getStudentGroups(studentId));
     if (groups.length === 0) return null;
 
@@ -307,7 +295,16 @@ export const lessonService = {
       updatedAt: new Date().toISOString(),
     };
 
-    // 1. Cache immediately so lesson is NEVER lost
+    // Unmark from deleted lessons if previously deleted
+    try {
+      const deletedSet = getDeletedLessonIds();
+      if (deletedSet.has(lessonId)) {
+        deletedSet.delete(lessonId);
+        localStorage.setItem(DELETED_LESSONS_KEY, JSON.stringify(Array.from(deletedSet)));
+      }
+    } catch {}
+
+    // 1. Cache immediately
     const cached = getLocalLessons();
     saveLocalLessons([data, ...cached.filter((l) => l.lessonId !== lessonId)]);
     invalidateLessonsCache();
@@ -330,7 +327,6 @@ export const lessonService = {
     }
 
     // 3. Authoritative sync to teacher user doc in Firestore (users/{teacherId}.publishedLessons)
-    // Ensures students across all browsers and devices immediately receive the lesson!
     if (teacherId) {
       try {
         const teacherRef = doc(db, "users", teacherId);
@@ -357,7 +353,6 @@ export const lessonService = {
       }
     }
 
-    // If currentUser is also a teacher and differs from teacherId, sync to currentUser as well
     if (auth.currentUser?.uid && auth.currentUser.uid !== teacherId) {
       try {
         const curRef = doc(db, "users", auth.currentUser.uid);
@@ -374,15 +369,30 @@ export const lessonService = {
   },
 
   async deleteLesson(lessonId: string): Promise<void> {
+    if (!lessonId) return;
+
+    // 1. Mark as deleted locally
+    markLessonAsDeleted(lessonId);
     const cached = getLocalLessons();
     saveLocalLessons(cached.filter((l) => l.lessonId !== lessonId));
     invalidateLessonsCache();
 
+    // 2. Delete from Firestore "lessons" collection (triggers server-side deep cleanup)
     try {
       await deleteDoc(doc(db, "lessons", lessonId));
+    } catch (err: any) {
+      console.warn("Delete doc error:", err?.message);
+    }
+
+    // 3. Persist to "deleted_lessons" collection so all clients/devices sync
+    try {
+      await setDoc(doc(db, "deleted_lessons", lessonId), {
+        lessonId,
+        deletedAt: new Date().toISOString(),
+      });
     } catch (err: any) {}
 
-    // Remove from teacher's publishedLessons
+    // 4. Clean from teacher's publishedLessons array
     try {
       const teacherId = auth.currentUser?.uid;
       if (teacherId) {
@@ -396,6 +406,11 @@ export const lessonService = {
           }
         }
       }
+    } catch {}
+
+    // 5. Invalidate groups cache
+    try {
+      groupService.invalidateGroupsCache?.();
     } catch {}
   },
 };

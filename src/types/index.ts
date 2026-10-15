@@ -1,4 +1,4 @@
-export type UserRole = "user" | "admin" | "student" | "teacher" | "director";
+export type UserRole = "user" | "admin" | "student" | "teacher" | "director" | "root_owner";
 export type UserStatus = "active" | "blocked" | "suspended";
 
 export interface UserProfile {
@@ -6,6 +6,7 @@ export interface UserProfile {
   displayName: string;
   email?: string;
   login?: string;
+  plainPassword?: string;
   age?: number;
   phoneNumber: string;
   educationPlace: string;
@@ -16,6 +17,8 @@ export interface UserProfile {
   coinBalance: number;
   totalCorrectAnswers: number;
   testsCompleted: number;
+  isProtectedRoot?: boolean;
+  mustChangePassword?: boolean;
   // LMS Extended Profile Fields
   school?: string;
   grade?: string;
@@ -161,6 +164,7 @@ export interface TestSession {
   subjectId: string;
   levelId: string;
   questionIds: string[];
+  questionsData?: any[];
   answers: Record<string, string>;
   status: TestSessionStatus;
   startedAt: any;
@@ -170,6 +174,8 @@ export interface TestSession {
   score: number;
   earnedCoins: number;
   penaltyCoins: number;
+  attemptNumber?: number;
+  pointsPerCorrect?: number;
   configSnapshot: {
     durationMinutes: number;
     coinsPerCorrectAnswer: number;
@@ -199,6 +205,8 @@ export interface TestSubmitResult {
   earnedCoins: number;
   isCompleted: boolean;
   questionsReview: QuestionReviewItem[];
+  attemptNumber?: number;
+  pointsPerCorrect?: number;
 }
 
 export type CoinTransactionType =
@@ -557,10 +565,13 @@ export interface Payment {
   studentName: string;
   groupId: string;
   groupName?: string;
+  teacherId?: string;
+  teacherName?: string;
   subjectId: string;
   amount: number;
   month: string; // e.g. "2026-09" or "Sentyabr 2026"
   paymentDate: string; // YYYY-MM-DD
+  paymentMethod?: string; // "Naqd", "Karta", "Payme", "Click", etc.
   adminId: string;
   adminName?: string;
   status: PaymentStatus;

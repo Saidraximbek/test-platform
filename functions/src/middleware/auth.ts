@@ -1,4 +1,4 @@
-﻿import * as functions from "firebase-functions";
+import * as functions from "firebase-functions";
 import { ZodSchema, ZodError } from "zod";
 import { db } from "../config/firebase";
 import { UserDoc } from "../types";
@@ -56,14 +56,22 @@ export async function requireActiveUser(context: functions.https.CallableContext
   return user;
 }
 
+export function isCallerRootOwner(context: functions.https.CallableContext, user?: UserDoc): boolean {
+  if (!context.auth) return false;
+  const token = context.auth.token as Record<string, any>;
+  return token.role === "root_owner" || token.rootOwner === true || user?.role === "root_owner";
+}
+
 export async function requireAdmin(context: functions.https.CallableContext): Promise<UserDoc> {
   requireAuth(context);
 
   const token = context.auth.token as Record<string, any>;
-  const isAdminClaim = token.admin === true || token.role === "admin";
   const user = await getUser(context.auth.uid);
+  const isRoot = isCallerRootOwner(context, user);
+  const isDirector = token.role === "director" || user.role === "director" || isRoot;
+  const isAdminClaim = token.admin === true || token.role === "admin" || isDirector;
 
-  if (!isAdminClaim && user.role !== "admin") {
+  if (!isAdminClaim && user.role !== "admin" && user.role !== "director" && user.role !== "root_owner") {
     throw new functions.https.HttpsError("permission-denied", "Faqat administratorlar uchun ruxsat etilgan");
   }
 

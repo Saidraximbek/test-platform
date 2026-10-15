@@ -63,6 +63,7 @@ export const LevelsPage: React.FC = () => {
   }, [subjectId, user?.uid]);
 
   const handleStartTest = async (levelId: string) => {
+    if (isStartingTest) return;
     if (isSuspended) {
       toastError("Hisobingiz to'xtatilganligi sababli test boshlay olmaysiz");
       return;

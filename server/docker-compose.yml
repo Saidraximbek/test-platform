@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  mongo:
+    image: mongo:7.0
+    container_name: fargoniy_mongo
+    restart: always
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - /opt/fargoniy/data/mongo:/data/db
+    networks:
+      - fargoniy_net
+
+  backend:
+    build:
+      context: /opt/fargoniy/backend
+      dockerfile: Dockerfile
+    container_name: fargoniy_backend
+    restart: always
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongo:27017/fargoniy_lms
+      - JWT_SECRET=fargoniy_lms_secret_jwt_key_2026_xyz
+      - UPLOAD_DIR=/opt/fargoniy/uploads
+      - BACKUP_DIR=/opt/fargoniy/firebase_backup
+    volumes:
+      - /opt/fargoniy/uploads:/opt/fargoniy/uploads
+      - /opt/fargoniy/firebase_backup:/opt/fargoniy/firebase_backup
+    depends_on:
+      - mongo
+    networks:
+      - fargoniy_net
+
+  nginx:
+    image: nginx:alpine
+    container_name: fargoniy_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /opt/fargoniy/nginx/conf.d:/etc/nginx/conf.d
+      - /opt/fargoniy/frontend/dist:/usr/share/nginx/html
+      - /opt/fargoniy/uploads:/usr/share/nginx/html/uploads
+      - /opt/fargoniy/certbot/www:/var/www/certbot
+      - /opt/fargoniy/certbot/conf:/etc/letsencrypt
+    depends_on:
+      - backend
+    networks:
+      - fargoniy_net
+
+networks:
+  fargoniy_net:
+    driver: bridge

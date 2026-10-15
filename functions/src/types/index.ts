@@ -1,8 +1,8 @@
-﻿import type * as admin from "firebase-admin";
+import type * as admin from "firebase-admin";
 
 export type Timestamp = admin.firestore.Timestamp;
 
-export type UserRole = "user" | "admin";
+export type UserRole = "user" | "admin" | "teacher" | "director" | "root_owner";
 export type UserStatus = "active" | "blocked" | "suspended";
 
 export interface UserDoc {

@@ -4,12 +4,14 @@ import { AppLayout } from "./components/layout/AppLayout";
 import { AdminLayout } from "./components/layout/AdminLayout";
 import { TeacherLayout } from "./components/layout/TeacherLayout";
 import { DirectorLayout } from "./components/layout/DirectorLayout";
+import { RootOwnerLayout } from "./components/layout/RootOwnerLayout";
 import { AuthLayout } from "./components/layout/AuthLayout";
 import {
   ProtectedRoute,
   AdminRoute,
   TeacherRoute,
   DirectorRoute,
+  RootOwnerRoute,
   BlockedAccountScreen,
 } from "./components/common/ProtectedRoute";
 import { useAuth } from "./context/AuthContext";
@@ -84,8 +86,17 @@ const DirectorExpensesPage = lazy(() => import("./pages/director/DirectorExpense
 const DirectorAnalyticsPage = lazy(() => import("./pages/director/DirectorAnalyticsPage").then((m) => ({ default: m.DirectorAnalyticsPage })));
 const DirectorSettingsPage = lazy(() => import("./pages/director/DirectorSettingsPage").then((m) => ({ default: m.DirectorSettingsPage })));
 
+// Root Owner Pages
+const RootDashboardPage = lazy(() => import("./pages/root/RootDashboardPage").then((m) => ({ default: m.RootDashboardPage })));
+const RootUsersPage = lazy(() => import("./pages/root/RootUsersPage").then((m) => ({ default: m.RootUsersPage })));
+const RootDirectorsPage = lazy(() => import("./pages/root/RootDirectorsPage").then((m) => ({ default: m.RootDirectorsPage })));
+const RootFinancePage = lazy(() => import("./pages/root/RootFinancePage").then((m) => ({ default: m.RootFinancePage })));
+const RootSystemPage = lazy(() => import("./pages/root/RootSystemPage").then((m) => ({ default: m.RootSystemPage })));
+const RootAuditPage = lazy(() => import("./pages/root/RootAuditPage").then((m) => ({ default: m.RootAuditPage })));
+const RootSettingsPage = lazy(() => import("./pages/root/RootSettingsPage").then((m) => ({ default: m.RootSettingsPage })));
+
 const RootRedirect: React.FC = () => {
-  const { firebaseUser, user, isAdmin, isTeacher, isDirector, isBlocked, isSuspended, loading } = useAuth();
+  const { firebaseUser, user, isRootOwner, isAdmin, isTeacher, isDirector, isBlocked, isSuspended, loading } = useAuth();
 
   if (loading) {
     return (
@@ -104,6 +115,9 @@ const RootRedirect: React.FC = () => {
     return <BlockedAccountScreen />;
   }
 
+  if (isRootOwner || user?.role === "root_owner") {
+    return <Navigate to="/root" replace />;
+  }
   if (isDirector || user?.role === "director") {
     return <Navigate to="/director" replace />;
   }
@@ -238,6 +252,24 @@ export const App: React.FC = () => {
         <Route path="leaderboard" element={<AdminLeaderboardPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
         <Route path="audit-logs" element={<AdminAuditLogsPage />} />
+      </Route>
+
+      {/* Root Owner Protected Routes */}
+      <Route
+        path="/root"
+        element={
+          <RootOwnerRoute>
+            <RootOwnerLayout />
+          </RootOwnerRoute>
+        }
+      >
+        <Route index element={<RootDashboardPage />} />
+        <Route path="users" element={<RootUsersPage />} />
+        <Route path="directors" element={<RootDirectorsPage />} />
+        <Route path="finance" element={<RootFinancePage />} />
+        <Route path="system" element={<RootSystemPage />} />
+        <Route path="audit" element={<RootAuditPage />} />
+        <Route path="settings" element={<RootSettingsPage />} />
       </Route>
 
       {/* Fallback route */}

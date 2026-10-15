@@ -22,12 +22,17 @@ import {
   Building,
   CreditCard,
   Plus,
+  Trash2,
+  Printer,
 } from "lucide-react";
 import { financeService, FinancialSummary } from "../../services/financeService";
 import { Payment, Expense, TeacherSalary } from "../../types";
 import { Card } from "../../components/common/Card";
 import { Button } from "../../components/common/Button";
+import { Modal } from "../../components/common/Modal";
 import { Spinner } from "../../components/common/Spinner";
+import { PaymentReceiptModal } from "../../components/admin/PaymentReceiptModal";
+import { useToast } from "../../context/ToastContext";
 import { formatNumber } from "../../utils";
 
 const getCurrentMonth = () => {
@@ -37,6 +42,7 @@ const getCurrentMonth = () => {
 
 interface CashTransaction {
   id: string;
+  originalId: string;
   date: string;
   type: "INCOME" | "EXPENSE" | "SALARY";
   title: string;
@@ -44,9 +50,12 @@ interface CashTransaction {
   categoryOrMethod: string;
   amount: number;
   recordedBy?: string;
+  paymentObj?: Payment;
+  expenseObj?: Expense;
 }
 
 export const DirectorFinancePage: React.FC = () => {
+  const { success, error: toastError } = useToast();
   const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonth);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -55,6 +64,12 @@ export const DirectorFinancePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Modals for deleting payment/expense & viewing receipt
+  const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [receiptPayment, setReceiptPayment] = useState<Payment | null>(null);
 
   // Ledger Filter & Search
   const [typeFilter, setTypeFilter] = useState<"ALL" | "INCOME" | "EXPENSE" | "SALARY">("ALL");
@@ -93,6 +108,37 @@ export const DirectorFinancePage: React.FC = () => {
     return () => window.removeEventListener("finance_updated", handleSync);
   }, [selectedMonth]);
 
+  // Delete Handlers
+  const handleDeletePayment = async () => {
+    if (!paymentToDelete) return;
+    try {
+      setDeleting(true);
+      await financeService.deletePayment(paymentToDelete.paymentId);
+      success("To'lov muvaffaqiyatli o'chirildi! Kassa balansi va oyliklar qayta hisoblandi.");
+      setPaymentToDelete(null);
+      await loadData(true);
+    } catch (err: any) {
+      toastError(err.message || "To'lovni o'chirishda xatolik yuz berdi");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+    try {
+      setDeleting(true);
+      await financeService.deleteExpense(expenseToDelete.expenseId);
+      success("Xarajat muvaffaqiyatli o'chirildi!");
+      setExpenseToDelete(null);
+      await loadData(true);
+    } catch (err: any) {
+      toastError(err.message || "Xarajatni o'chirishda xatolik");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Build unified transactions ledger
   const transactions: CashTransaction[] = useMemo(() => {
     const list: CashTransaction[] = [];
@@ -103,6 +149,7 @@ export const DirectorFinancePage: React.FC = () => {
       .forEach((p) => {
         list.push({
           id: `pay_${p.paymentId}`,
+          originalId: p.paymentId,
           date: p.paymentDate || p.createdAt?.slice(0, 10) || selectedMonth + "-01",
           type: "INCOME",
           title: p.studentName || "O'quvchi to'lovi",
@@ -110,6 +157,7 @@ export const DirectorFinancePage: React.FC = () => {
           categoryOrMethod: p.receiptNumber || "To'lov",
           amount: Number(p.amount),
           recordedBy: p.adminName || "Admin",
+          paymentObj: p,
         });
       });
 
@@ -128,6 +176,7 @@ export const DirectorFinancePage: React.FC = () => {
         };
         list.push({
           id: `exp_${e.expenseId}`,
+          originalId: e.expenseId,
           date: e.date || e.createdAt?.slice(0, 10) || selectedMonth + "-01",
           type: "EXPENSE",
           title: e.description || "Markaz xarajati",
@@ -135,6 +184,7 @@ export const DirectorFinancePage: React.FC = () => {
           categoryOrMethod: catMap[e.category] || "Xarajat",
           amount: Number(e.amount),
           recordedBy: e.createdByName || "Direktor",
+          expenseObj: e,
         });
       });
 
@@ -144,6 +194,7 @@ export const DirectorFinancePage: React.FC = () => {
       .forEach((s) => {
         list.push({
           id: `sal_${s.salaryId}`,
+          originalId: s.salaryId,
           date: s.paidAt?.slice(0, 10) || selectedMonth + "-01",
           type: "SALARY",
           title: `${s.teacherName} (Maosh)`,
@@ -418,7 +469,7 @@ export const DirectorFinancePage: React.FC = () => {
           </div>
 
           <div className="mt-4 pt-2 border-t border-slate-800 flex justify-between text-[11px]">
-            <Link to="/admin/payments" className="text-emerald-400 hover:underline font-bold">
+            <Link to="/director/payments" className="text-emerald-400 hover:underline font-bold">
               Qarzlarni undirish →
             </Link>
             <Link to="/director/salaries" className="text-amber-400 hover:underline font-bold">
@@ -431,7 +482,7 @@ export const DirectorFinancePage: React.FC = () => {
       {/* 4 Monthly KPI Blocks */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* 1. Monthly Revenue */}
-        <Link to="/admin/payments" className="block group">
+        <Link to="/director/payments" className="block group">
           <Card className="p-4 bg-slate-900/60 border-emerald-500/20 group-hover:border-emerald-500/50 transition-all flex items-center justify-between">
             <div>
               <span className="text-[11px] text-slate-400 font-bold block uppercase tracking-wider">
@@ -729,12 +780,13 @@ export const DirectorFinancePage: React.FC = () => {
                 <th className="p-3.5">Toifa / Kvitansiya</th>
                 <th className="p-3.5 text-right">Summa</th>
                 <th className="p-3.5 text-center">Mas'ul</th>
+                <th className="p-3.5 text-right">Amallar</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60 font-medium">
               {filteredTransactions.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500 text-xs">
+                  <td colSpan={7} className="p-8 text-center text-slate-500 text-xs">
                     Operatsiyalar topilmadi
                   </td>
                 </tr>
@@ -774,6 +826,38 @@ export const DirectorFinancePage: React.FC = () => {
                     <td className="p-3.5 text-center text-slate-400 text-[11px] whitespace-nowrap">
                       {t.recordedBy}
                     </td>
+                    <td className="p-3.5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {t.type === "INCOME" && t.paymentObj && (
+                          <>
+                            <button
+                              onClick={() => setReceiptPayment(t.paymentObj!)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 text-brand-300 hover:bg-brand-600 hover:text-white transition-all border border-slate-700/60"
+                              title="Chekni chop etish"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Chek</span>
+                            </button>
+                            <button
+                              onClick={() => setPaymentToDelete(t.paymentObj!)}
+                              className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors"
+                              title="To'lovni o'chirish"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        {t.type === "EXPENSE" && t.expenseObj && (
+                          <button
+                            onClick={() => setExpenseToDelete(t.expenseObj!)}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors"
+                            title="Xarajatni o'chirish"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))
               )}
@@ -784,7 +868,7 @@ export const DirectorFinancePage: React.FC = () => {
 
       {/* Quick Action Buttons */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Link to="/admin/payments">
+        <Link to="/director/payments">
           <Card className="p-4 bg-slate-900/60 border-slate-800 hover:border-emerald-500/40 transition-all flex items-center justify-between group">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-400">
@@ -792,9 +876,9 @@ export const DirectorFinancePage: React.FC = () => {
               </div>
               <div>
                 <h4 className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors">
-                  To'lov Qabul Qilish
+                  To'lovlar Boshqaruvi
                 </h4>
-                <p className="text-xs text-slate-400 mt-0.5">O'quvchi kontrakt to'lovlarini kiritish</p>
+                <p className="text-xs text-slate-400 mt-0.5">O'quvchilar to'lovlari va o'chirish</p>
               </div>
             </div>
             <ArrowUpRight className="w-5 h-5 text-slate-500 group-hover:text-emerald-400 group-hover:translate-x-0.5 transition-transform" />
@@ -835,6 +919,100 @@ export const DirectorFinancePage: React.FC = () => {
           </Card>
         </Link>
       </div>
+
+      {/* Modal: Printable Official Receipt */}
+      <PaymentReceiptModal
+        isOpen={!!receiptPayment}
+        onClose={() => setReceiptPayment(null)}
+        payment={receiptPayment}
+      />
+
+      {/* Modal: Confirm Delete Payment */}
+      <Modal
+        isOpen={!!paymentToDelete}
+        onClose={() => setPaymentToDelete(null)}
+        title="To'lovni O'chirish (Direktor)"
+      >
+        <div className="space-y-4 text-xs">
+          <p className="text-slate-300">
+            Rostdan ham ushbu to'lov yozuvini o'chirmoqchimisiz?
+          </p>
+          <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">O'quvchi:</span>
+              <span className="font-bold text-white text-sm">{paymentToDelete?.studentName}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Guruh:</span>
+              <span className="font-semibold text-slate-200">{paymentToDelete?.groupName || "Guruh"}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Summa:</span>
+              <span className="font-bold text-emerald-400 text-sm">
+                {formatNumber(paymentToDelete?.amount || 0)} UZS
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Kvitansiya raqami:</span>
+              <span className="font-mono text-brand-400 font-bold">{paymentToDelete?.receiptNumber}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Sana / Oy:</span>
+              <span className="text-slate-300">{paymentToDelete?.paymentDate} ({paymentToDelete?.month})</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-rose-400 bg-rose-500/10 p-2.5 rounded-lg border border-rose-500/20">
+            ⚠️ Ushbu to'lov o'chirilgach, markaz tushumlari, kassa qoldig'i va biriktirilgan ustozning maoshidagi guruh tushumi ham avtomatik qayta hisoblanadi.
+          </p>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setPaymentToDelete(null)}>
+              Bekor qilish
+            </Button>
+            <Button variant="danger" onClick={handleDeletePayment} isLoading={deleting}>
+              To'lovni O'chirish
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: Confirm Delete Expense */}
+      <Modal
+        isOpen={!!expenseToDelete}
+        onClose={() => setExpenseToDelete(null)}
+        title="Xarajatni O'chirish"
+      >
+        <div className="space-y-4 text-xs">
+          <p className="text-slate-300">
+            Rostdan ham ushbu xarajatni o'chirmoqchimisiz?
+          </p>
+          <div className="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Tavsif:</span>
+              <span className="font-bold text-white">{expenseToDelete?.description}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Toifa:</span>
+              <span className="font-semibold text-slate-300">{expenseToDelete?.category}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-slate-400">Summa:</span>
+              <span className="font-bold text-rose-400">
+                {formatNumber(expenseToDelete?.amount || 0)} UZS
+              </span>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setExpenseToDelete(null)}>
+              Bekor qilish
+            </Button>
+            <Button variant="danger" onClick={handleDeleteExpense} isLoading={deleting}>
+              Xarajatni O'chirish
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

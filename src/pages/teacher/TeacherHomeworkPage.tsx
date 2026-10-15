@@ -22,6 +22,7 @@ import { Input } from "../../components/common/Input";
 import { Spinner } from "../../components/common/Spinner";
 import { VideoEmbed } from "../../components/common/VideoEmbed";
 import { extractYouTubeUrls } from "../../utils/videoUtils";
+import { RichTextEditor, FormattedContent } from "../../components/common/RichTextEditor";
 
 export const TeacherHomeworkPage: React.FC = () => {
   const { user } = useAuth();
@@ -222,9 +223,15 @@ export const TeacherHomeworkPage: React.FC = () => {
         title={selectedSub ? `${selectedSub.studentName}ning javobini baholash` : ""}
       >
         <form onSubmit={handleGrade} className="space-y-4">
-          <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/60 text-xs space-y-2">
-            <span className="text-slate-400 font-semibold block">O'quvchi javobi:</span>
-            <p className="text-white leading-relaxed font-mono">{selectedSub?.textAnswer}</p>
+          <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 text-xs space-y-2">
+            <span className="text-slate-400 font-semibold block">O'quvchi javobi (Dizaynli matn):</span>
+            {selectedSub?.textAnswer ? (
+              <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+                <FormattedContent content={selectedSub.textAnswer} />
+              </div>
+            ) : (
+              <p className="text-slate-400 italic">Javob matni kiritilmagan</p>
+            )}
 
             {selectedSub && extractYouTubeUrls(selectedSub.textAnswer).map((ytUrl, idx) => (
               <div key={idx} className="pt-2">
@@ -234,29 +241,29 @@ export const TeacherHomeworkPage: React.FC = () => {
             ))}
           </div>
 
-          <Input
-            label="Ball (0 - 100)"
-            type="number"
-            min={0}
-            max={100}
-            value={score}
-            onChange={(e) => setScore(Number(e.target.value))}
-            required
-          />
-
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Ustoz fikri / Izoh (Studentga ko'rinadi)
-            </label>
-            <textarea
-              rows={3}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Masalan: 3-savolda xatolik bor, lekin umumiy hisobda yaxshi..."
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-400 focus:outline-none focus:border-brand-500"
+            <Input
+              label={`Ball (0 - 100) — O'quvchiga ${score} Tillo tangasi sifatida beriladi`}
+              type="number"
+              min={0}
+              max={100}
+              value={score}
+              onChange={(e) => setScore(Number(e.target.value))}
               required
             />
+            <p className="text-[11px] text-amber-400 mt-1">
+              ✨ Belgilangan ball avtomatik ravishda o'quvchi hisobiga Tillo tanga bo'lib o'tadi.
+            </p>
           </div>
+
+          <RichTextEditor
+            label="Ustoz fikri / Izoh (Dizayn berib yozish mumkin):"
+            value={comment}
+            onChange={setComment}
+            placeholder="Masalan: 3-savolda xatolik bor, lekin umumiy hisobda yaxshi..."
+            rows={3}
+            required
+          />
 
           <div className="flex justify-end gap-2 pt-2">
             <Button
@@ -266,8 +273,8 @@ export const TeacherHomeworkPage: React.FC = () => {
             >
               Bekor qilish
             </Button>
-            <Button type="submit" isLoading={grading}>
-              Bahoni saqlash
+            <Button type="submit" isLoading={grading} className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold">
+              Bahoni saqlash (+{score} Tillo)
             </Button>
           </div>
         </form>

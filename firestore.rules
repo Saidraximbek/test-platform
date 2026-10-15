@@ -5,9 +5,19 @@ service cloud.firestore {
     function isAuthenticated() {
       return request.auth != null;
     }
+
+    function isRootOwner() {
+      return isAuthenticated() && (
+        request.auth.token.role == 'root_owner' ||
+        request.auth.token.rootOwner == true ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'root_owner')
+      );
+    }
     
     function isDirector() {
       return isAuthenticated() && (
+        isRootOwner() ||
         request.auth.token.role == 'director' ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'director')
@@ -35,10 +45,23 @@ service cloud.firestore {
 
     // 1. Users
     match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated();
-      allow delete: if isAdmin();
+      // Root Owner profile cannot be read by ordinary users, teachers, or directors.
+      // Only the root owner themselves or an authenticated root owner can read it.
+      allow read: if isAuthenticated() && (
+        resource.data.role != 'root_owner' || isRootOwner() || (request.auth.uid == userId)
+      );
+      // No client can self-assign root_owner role unless caller isRootOwner()
+      allow create: if isAuthenticated() && (
+        request.resource.data.role != 'root_owner' || isRootOwner()
+      );
+      // Root Owner cannot be modified or downgraded by non-root-owners
+      // No ordinary user or director can promote an account to root_owner
+      allow update: if isAuthenticated() && (
+        (resource.data.role != 'root_owner' || isRootOwner() || (request.auth.uid == userId && request.resource.data.role == resource.data.role)) &&
+        (request.resource.data.role != 'root_owner' || isRootOwner())
+      );
+      // Root Owner cannot be deleted by admins or directors; only by Root Owner
+      allow delete: if (isAdmin() && resource.data.role != 'root_owner') || isRootOwner();
     }
 
     // 2. User Progress
@@ -137,6 +160,11 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isAuthenticated();
       allow write: if isAuthenticated();
+    }
+
+    // 15b. Protected Root Audit Logs (Exclusive to Root Owner)
+    match /root_audit_logs/{logId} {
+      allow read, write: if isRootOwner();
     }
 
     // 16. System Settings

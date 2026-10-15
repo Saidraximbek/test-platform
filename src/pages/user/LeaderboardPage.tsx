@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-import { Trophy, Medal, Crown, Sparkles, User, BookOpen } from "lucide-react";
+import { Trophy, Medal, Crown, Sparkles, User, BookOpen, Users, ShieldCheck, Flame, ChevronDown } from "lucide-react";
 import { leaderboardService } from "../../services/leaderboardService";
 import { subjectService } from "../../services/subjectService";
+import { groupService } from "../../services/groupService";
 import { useAuth } from "../../context/AuthContext";
-import { LeaderboardStats, Subject } from "../../types";
+import { LeaderboardStats, Subject, Group, LeaderboardRankingEntry } from "../../types";
 import { Card } from "../../components/common/Card";
 import { CoinBadge } from "../../components/common/CoinBadge";
 import { Spinner } from "../../components/common/Spinner";
@@ -15,20 +16,55 @@ export const LeaderboardPage: React.FC = () => {
   const [boardType, setBoardType] = useState<string>("global_all_time");
   const [stats, setStats] = useState<LeaderboardStats | null>(null);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
+  const [groupViewMode, setGroupViewMode] = useState<"students" | "comparison">("students");
+  const [groupLeaderboardData, setGroupLeaderboardData] = useState<{
+    groupName: string;
+    rankings: LeaderboardRankingEntry[];
+    totalGroupCoins: number;
+  } | null>(null);
+  const [groupsComparisonData, setGroupsComparisonData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load subjects for filter
+  // Load subjects and groups for filter
   useEffect(() => {
-    subjectService.getSubjects(true).then(setSubjects).catch(console.error);
-  }, []);
+    Promise.all([
+      subjectService.getSubjects(true).catch(() => []),
+      groupService.getGroups("active").catch(() => []),
+    ]).then(([subs, grps]) => {
+      setSubjects(subs);
+      setGroups(grps);
+
+      // Agar foydalanuvchi biror guruhda bo'lsa, default o'sha guruhni tanlaymiz
+      const userGroup = grps.find((g) =>
+        user?.groupIds?.includes(g.groupId) || (g.studentIds && g.studentIds.includes(user?.uid || ""))
+      );
+      if (userGroup) {
+        setSelectedGroupId(userGroup.groupId);
+      } else if (grps.length > 0) {
+        setSelectedGroupId(grps[0].groupId);
+      }
+    });
+  }, [user]);
 
   // Load selected leaderboard
   useEffect(() => {
     const fetchBoard = async () => {
       setLoading(true);
       try {
-        const data = await leaderboardService.getLeaderboardStats(boardType);
-        setStats(data);
+        if (boardType === "groups") {
+          if (groupViewMode === "students" && selectedGroupId) {
+            const data = await leaderboardService.getGroupCoinsLeaderboard(selectedGroupId);
+            setGroupLeaderboardData(data);
+          } else if (groupViewMode === "comparison") {
+            const list = await leaderboardService.getGroupsCoinsComparisonLeaderboard();
+            setGroupsComparisonData(list);
+          }
+        } else {
+          const data = await leaderboardService.getLeaderboardStats(boardType);
+          setStats(data);
+        }
       } catch (err) {
         console.error("Error loading leaderboard:", err);
       } finally {
@@ -36,9 +72,12 @@ export const LeaderboardPage: React.FC = () => {
       }
     };
     fetchBoard();
-  }, [boardType]);
+  }, [boardType, selectedGroupId, groupViewMode]);
 
-  const rankings = stats?.rankings || [];
+  const rankings = boardType === "groups" && groupViewMode === "students"
+    ? groupLeaderboardData?.rankings || []
+    : stats?.rankings || [];
+
   const top1 = rankings[0];
   const top2 = rankings[1];
   const top3 = rankings[2];
@@ -59,6 +98,7 @@ export const LeaderboardPage: React.FC = () => {
 
       {/* Board Type Selector Tabs (Touch Scrollable on Mobile) */}
       <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto pb-2 px-1 scrollbar-thin">
+        {/* Global Tab */}
         <button
           onClick={() => {
             sound.playClick();
@@ -73,6 +113,23 @@ export const LeaderboardPage: React.FC = () => {
           Umumiy Reyting (Barcha vaqt)
         </button>
 
+        {/* Groups Leaderboard Tab (Yangi!) */}
+        <button
+          onClick={() => {
+            sound.playClick();
+            setBoardType("groups");
+          }}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5 ${
+            boardType === "groups"
+              ? "bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20"
+              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Guruhlar Reytingi (Tillolar)</span>
+        </button>
+
+        {/* Subjects Tabs */}
         {subjects.map((sub) => (
           <button
             key={sub.subjectId}
@@ -91,9 +148,138 @@ export const LeaderboardPage: React.FC = () => {
         ))}
       </div>
 
+      {/* Guruhlar Reytingi uchun maxsus Boshqaruv Paneli */}
+      {boardType === "groups" && (
+        <Card className="p-4 bg-gradient-to-r from-amber-500/10 via-slate-900 to-slate-900 border-amber-500/30 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <Users className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="font-extrabold text-sm text-white">Guruhlar Tillo Liderboardi</h4>
+              <p className="text-xs text-slate-400">
+                {groupViewMode === "students"
+                  ? "Guruh ichidagi o'quvchilarning jamg'argan tillolari reytingi"
+                  : "Barcha guruhlarning umumiy tillolari ligasi"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="inline-flex rounded-xl bg-slate-800 p-1 border border-slate-700/60 text-xs font-semibold">
+              <button
+                onClick={() => setGroupViewMode("students")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  groupViewMode === "students"
+                    ? "bg-amber-500 text-slate-950 font-bold shadow"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Guruh a'zolari
+              </button>
+              <button
+                onClick={() => setGroupViewMode("comparison")}
+                className={`px-3 py-1.5 rounded-lg transition-all ${
+                  groupViewMode === "comparison"
+                    ? "bg-amber-500 text-slate-950 font-bold shadow"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                Guruhlar musobaqasi
+              </button>
+            </div>
+
+            {/* Select Group Dropdown (faqat students rejimida) */}
+            {groupViewMode === "students" && groups.length > 0 && (
+              <div className="relative">
+                <select
+                  value={selectedGroupId}
+                  onChange={(e) => setSelectedGroupId(e.target.value)}
+                  className="bg-slate-800 border border-slate-700/80 rounded-xl text-xs text-white font-bold px-3 py-2 pr-8 focus:outline-none focus:border-amber-500"
+                >
+                  {groups.map((g) => (
+                    <option key={g.groupId} value={g.groupId}>
+                      {g.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
       {loading ? (
         <div className="flex justify-center items-center py-20">
           <Spinner size="lg" className="text-brand-600" />
+        </div>
+      ) : boardType === "groups" && groupViewMode === "comparison" ? (
+        /* Guruhlararo Tillolar Musobaqasi Ko'rinishi */
+        <div className="space-y-4">
+          <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 flex items-center justify-between text-xs text-slate-400">
+            <span>Jami: <strong className="text-white">{groupsComparisonData.length} ta guruh</strong></span>
+            <span>Mezon: <strong className="text-amber-400">Guruh o'quvchilarining jami tillolari</strong></span>
+          </div>
+
+          <div className="space-y-3">
+            {groupsComparisonData.map((grp) => {
+              const isTop1 = grp.rank === 1;
+              const isTop2 = grp.rank === 2;
+              const isTop3 = grp.rank === 3;
+
+              return (
+                <Card
+                  key={grp.groupId}
+                  className={`p-4 transition-all flex items-center justify-between gap-4 ${
+                    isTop1
+                      ? "bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-900 border-amber-400/50 shadow-lg shadow-amber-500/5"
+                      : isTop2
+                      ? "bg-slate-900/90 border-slate-700"
+                      : isTop3
+                      ? "bg-slate-900/80 border-amber-900/40"
+                      : "bg-slate-900/60 border-slate-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-3.5">
+                    <div
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
+                        isTop1
+                          ? "bg-amber-500 text-slate-950 shadow-md shadow-amber-500/30"
+                          : isTop2
+                          ? "bg-slate-300 text-slate-900"
+                          : isTop3
+                          ? "bg-amber-700 text-white"
+                          : "bg-slate-800 text-slate-400"
+                      }`}
+                    >
+                      {grp.rank}
+                    </div>
+
+                    <div>
+                      <h4 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
+                        {grp.groupName}
+                        {isTop1 && <Crown className="w-4 h-4 text-amber-400" />}
+                      </h4>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400 mt-0.5">
+                        <span>O'qituvchi: <strong className="text-slate-300">{grp.teacherName}</strong></span>
+                        <span>O'quvchilar: <strong className="text-slate-300">{grp.studentsCount} nafar</strong></span>
+                        <span>O'rtacha: <strong className="text-amber-400">{grp.averageCoins} tillo/o'quvchi</strong></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className="text-base sm:text-lg font-black text-amber-400 flex items-center justify-end gap-1">
+                      {formatCoins(grp.totalCoins)}
+                      <span className="text-xs font-semibold text-amber-500/80">Tillo</span>
+                    </div>
+                    <span className="text-[11px] text-slate-500 block">Jami jamg'arma</span>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       ) : rankings.length === 0 ? (
         <Card className="p-12 text-center text-xs text-slate-500">
@@ -123,10 +309,10 @@ export const LeaderboardPage: React.FC = () => {
                   {top1.displayName}
                 </h3>
                 <div className="mt-1 text-lg sm:text-xl font-black text-amber-500">
-                  {formatCoins(top1.score)} ball
+                  {formatCoins(top1.coinBalance || top1.score)} Tillo
                 </div>
                 <span className="text-[11px] text-slate-400 mt-0.5">
-                  {top1.testsCompleted} ta test | {top1.coinBalance} Tillo
+                  {top1.testsCompleted} ta test yakunlagan
                 </span>
               </Card>
             )}
@@ -149,11 +335,11 @@ export const LeaderboardPage: React.FC = () => {
                 <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate w-full">
                   {top2.displayName}
                 </h3>
-                <div className="mt-1 text-base font-black text-brand-600">
-                  {formatCoins(top2.score)} ball
+                <div className="mt-1 text-base font-black text-slate-300">
+                  {formatCoins(top2.coinBalance || top2.score)} Tillo
                 </div>
                 <span className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">
-                  {top2.testsCompleted} ta test | {top2.coinBalance} Tillo
+                  {top2.testsCompleted} ta test yakunlagan
                 </span>
               </Card>
             )}
@@ -176,17 +362,17 @@ export const LeaderboardPage: React.FC = () => {
                 <h3 className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 truncate w-full">
                   {top3.displayName}
                 </h3>
-                <div className="mt-1 text-base font-black text-brand-600">
-                  {formatCoins(top3.score)} ball
+                <div className="mt-1 text-base font-black text-amber-600">
+                  {formatCoins(top3.coinBalance || top3.score)} Tillo
                 </div>
                 <span className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5">
-                  {top3.testsCompleted} ta test | {top3.coinBalance} Tillo
+                  {top3.testsCompleted} ta test yakunlagan
                 </span>
               </Card>
             )}
           </div>
 
-          {/* Full Top 100 Rankings Table */}
+          {/* Full Top Rankings Table */}
           <Card className="divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden mt-6">
             <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between text-[11px] font-bold text-slate-500 uppercase tracking-wider">
               <div className="flex items-center gap-3 sm:gap-6">
@@ -195,8 +381,7 @@ export const LeaderboardPage: React.FC = () => {
               </div>
               <div className="flex items-center gap-4 sm:gap-8">
                 <span className="hidden sm:inline">Testlar</span>
-                <span className="hidden sm:inline">Tillo</span>
-                <span className="w-16 text-right">Ball</span>
+                <span className="w-20 text-right">Tillo Tangalari</span>
               </div>
             </div>
 
@@ -253,13 +438,10 @@ export const LeaderboardPage: React.FC = () => {
 
                   <div className="flex items-center gap-4 sm:gap-8 text-xs shrink-0">
                     <span className="hidden sm:inline text-slate-500">
-                      {entry.testsCompleted} ta
+                      {entry.testsCompleted} ta test
                     </span>
-                    <span className="hidden sm:inline font-semibold text-amber-600">
-                      {formatCoins(entry.coinBalance)}
-                    </span>
-                    <span className="w-16 text-right font-black text-brand-600 text-xs sm:text-sm">
-                      {formatCoins(entry.score)}
+                    <span className="w-20 text-right font-black text-amber-500 text-xs sm:text-sm">
+                      {formatCoins(entry.coinBalance || entry.score)} 🪙
                     </span>
                   </div>
                 </div>
