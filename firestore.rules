@@ -50,16 +50,34 @@ service cloud.firestore {
       allow read: if isAuthenticated() && (
         resource.data.role != 'root_owner' || isRootOwner() || (request.auth.uid == userId)
       );
-      // No client can self-assign root_owner role unless caller isRootOwner()
+
+      // User can create their own profile upon registration; cannot self-assign elevated roles
       allow create: if isAuthenticated() && (
-        request.resource.data.role != 'root_owner' || isRootOwner()
+        (request.auth.uid == userId && (
+          !('role' in request.resource.data) || 
+          request.resource.data.role == 'user' ||
+          isRootOwner()
+        )) ||
+        isAdmin() ||
+        isDirector() ||
+        isRootOwner()
       );
-      // Root Owner cannot be modified or downgraded by non-root-owners
-      // No ordinary user or director can promote an account to root_owner
+
+      // Updates:
+      // 1. Caller must be the account owner, or an admin/director/root_owner.
+      // 2. Normal users and teachers cannot modify their own or anyone else's role.
+      // 3. Root owner role cannot be touched or downgraded by non-root-owners.
+      // 4. No one except root owner can assign root_owner role.
       allow update: if isAuthenticated() && (
+        (request.auth.uid == userId || isAdmin() || isDirector() || isRootOwner()) &&
         (resource.data.role != 'root_owner' || isRootOwner() || (request.auth.uid == userId && request.resource.data.role == resource.data.role)) &&
-        (request.resource.data.role != 'root_owner' || isRootOwner())
+        (request.resource.data.role != 'root_owner' || isRootOwner()) &&
+        (
+          isDirector() || isRootOwner() ||
+          (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)
+        )
       );
+
       // Root Owner cannot be deleted by admins or directors; only by Root Owner
       allow delete: if (isAdmin() && resource.data.role != 'root_owner') || isRootOwner();
     }

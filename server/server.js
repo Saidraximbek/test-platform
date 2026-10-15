@@ -465,6 +465,24 @@ app.post('/api/data/:collection/:id', async (req, res) => {
 
     const updateOps = transformPayload(data);
 
+    // Protect existing privileged roles in users collection from being wiped out
+    if (colName === 'users') {
+      const existingUser = await db.collection('users').findOne({
+        $or: [{ _id: id }, { id: id }, { uid: id }]
+      });
+      if (existingUser && existingUser.role && existingUser.role !== 'user') {
+        const callerIsPrivileged = req.user && (req.user.role === 'root_owner' || req.user.role === 'director');
+        if (!callerIsPrivileged) {
+          if (updateOps.$set && updateOps.$set.role) {
+            updateOps.$set.role = existingUser.role;
+          }
+          if (data && data.role) {
+            data.role = existingUser.role;
+          }
+        }
+      }
+    }
+
     if (merge) {
       await db.collection(colName).updateOne(
         { _id: id },
@@ -503,6 +521,18 @@ app.patch('/api/data/:collection/:id', async (req, res) => {
     };
 
     const updateOps = transformPayload(data);
+
+    // Protect existing privileged roles in users collection from being wiped out
+    if (colName === 'users') {
+      const existingUser = await db.collection('users').findOne(queryFilter);
+      if (existingUser && existingUser.role && existingUser.role !== 'user') {
+        const callerIsPrivileged = req.user && (req.user.role === 'root_owner' || req.user.role === 'director');
+        if (!callerIsPrivileged && updateOps.$set && updateOps.$set.role) {
+          delete updateOps.$set.role;
+        }
+      }
+    }
+
     if (Object.keys(updateOps).length > 0) {
       await db.collection(colName).updateOne(queryFilter, updateOps);
     }
@@ -586,12 +616,16 @@ app.post('/api/functions/setAdminRole', async (req, res) => {
     }
 
     const now = new Date().toISOString();
+    let newRole = makeAdmin ? 'admin' : 'user';
+    if (!makeAdmin && targetUser && (targetUser.role === 'director' || targetUser.role === 'teacher' || targetUser.role === 'root_owner')) {
+      newRole = targetUser.role;
+    }
 
     await db.collection('users').updateOne(
       { $or: [{ _id: userId }, { uid: userId }, { id: userId }] },
       {
         $set: {
-          role: makeAdmin ? 'admin' : 'user',
+          role: newRole,
           updatedAt: now,
         },
       }

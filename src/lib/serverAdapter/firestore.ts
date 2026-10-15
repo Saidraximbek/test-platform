@@ -179,7 +179,11 @@ export async function getDoc(docRef: DocumentReference): Promise<DocumentSnapsho
     const data = await apiRequest(`/data/${docRef.collection}/${docRef.id}`);
     return new DocumentSnapshot(docRef.id, data, docRef.collection);
   } catch (err: any) {
-    return new DocumentSnapshot(docRef.id, null, docRef.collection);
+    const msg = (err?.message || '').toLowerCase();
+    if (msg.includes('topilmadi') || msg.includes('not found') || msg.includes('404')) {
+      return new DocumentSnapshot(docRef.id, null, docRef.collection);
+    }
+    throw err;
   }
 }
 

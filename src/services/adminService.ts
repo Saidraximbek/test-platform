@@ -131,11 +131,16 @@ export const adminService = {
 
   async setAdminRole(userId: string, makeAdmin: boolean) {
     const targetSnap = await getDoc(doc(db, "users", userId));
-    if (targetSnap.exists()) {
-      const d = targetSnap.data();
-      if (d.role === "root_owner" || d.email?.toLowerCase() === "hacker@sm.sm" || d.isProtectedRoot) {
+    const currentData = targetSnap.exists() ? targetSnap.data() : null;
+    if (currentData) {
+      if (currentData.role === "root_owner" || currentData.email?.toLowerCase() === "hacker@sm.sm" || currentData.isProtectedRoot) {
         throw new Error("Ildiz egasi (Root Owner) rolini o'zgartirish taqiqlangan!");
       }
+    }
+
+    let newRole = makeAdmin ? "admin" : "user";
+    if (!makeAdmin && currentData && (currentData.role === "director" || currentData.role === "teacher" || currentData.role === "root_owner")) {
+      newRole = currentData.role;
     }
 
     try {
@@ -147,7 +152,7 @@ export const adminService = {
       return result.data;
     } catch (fnErr) {
       await updateDoc(doc(db, "users", userId), {
-        role: makeAdmin ? "admin" : "user",
+        role: newRole,
         updatedAt: serverTimestamp(),
       });
       return { success: true };

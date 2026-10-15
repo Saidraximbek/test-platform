@@ -93,19 +93,25 @@ export const setAdminRole = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError("permission-denied", "Root Owner hisobining rolini o'zgartirish taqiqlangan");
   }
 
-  await auth.setCustomUserClaims(targetUid, {
-    ...currentClaims,
-    admin: isAdmin,
-    role: isAdmin ? "admin" : "user",
-  });
-
   // Keep users/{uid}.role in sync for client queries
   const userRef = db.collection("users").doc(targetUid);
   const userSnap = await userRef.get();
+  const currentRole = userSnap.exists ? (userSnap.data() as UserDoc).role : (currentClaims.role as string || "user");
+
+  let newRole = isAdmin ? "admin" : "user";
+  if (!isAdmin && (currentRole === "director" || currentRole === "teacher" || currentRole === "root_owner")) {
+    newRole = currentRole;
+  }
+
+  await auth.setCustomUserClaims(targetUid, {
+    ...currentClaims,
+    admin: isAdmin,
+    role: newRole,
+  });
 
   if (userSnap.exists) {
     await userRef.update({
-      role: isAdmin ? "admin" : "user",
+      role: newRole,
       updatedAt: Timestamp.now(),
     });
   }

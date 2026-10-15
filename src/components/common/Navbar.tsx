@@ -27,7 +27,7 @@ import { sound } from "../../utils/soundEffects";
 import { FargoniyLogo } from "./FargoniyLogo";
 
 export const Navbar: React.FC = () => {
-  const { user, firebaseUser, isAdmin, isTeacher, isDirector, logout } = useAuth();
+  const { user, firebaseUser, isRootOwner, isAdmin, isTeacher, isDirector, logout } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
@@ -40,12 +40,25 @@ export const Navbar: React.FC = () => {
     navigate("/login");
   };
 
-  const currentUser = user || (firebaseUser ? {
+  const calculatedRole = isRootOwner
+    ? "root_owner"
+    : isDirector
+    ? "director"
+    : isAdmin
+    ? "admin"
+    : isTeacher
+    ? "teacher"
+    : (user?.role || "user");
+
+  const currentUser = user ? {
+    ...user,
+    role: user.role && user.role !== "user" ? user.role : calculatedRole as any,
+  } : (firebaseUser ? {
     uid: firebaseUser.uid,
     displayName: firebaseUser.displayName || firebaseUser.email?.split("@")[0] || "Foydalanuvchi",
     photoURL: firebaseUser.photoURL || null,
     coinBalance: 0,
-    role: isAdmin ? "admin" : "user",
+    role: calculatedRole as any,
   } : null);
 
   const navLinks = [
@@ -251,6 +264,16 @@ export const Navbar: React.FC = () => {
                         <PlusCircle className="w-4 h-4 text-emerald-500" /> Savol taklif qilish
                       </Link>
 
+                      {isRootOwner && (
+                        <Link
+                          to="/root"
+                          onClick={() => setShowUserMenu(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-xs text-rose-500 font-bold hover:bg-rose-500/10 transition-colors"
+                        >
+                          <Shield className="w-4 h-4 text-rose-500" /> Root Egasi Paneli
+                        </Link>
+                      )}
+
                       {isDirector && (
                         <Link
                           to="/director"
@@ -356,9 +379,21 @@ export const Navbar: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Role Switcher if Admin, Director, or Teacher */}
-                {(isAdmin || isDirector || isTeacher) && (
+                {/* Role Switcher if Root Owner, Admin, Director, or Teacher */}
+                {(isRootOwner || isDirector || isAdmin || isTeacher) && (
                   <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-1.5">
+                    {isRootOwner && (
+                      <Link
+                        to="/root"
+                        onClick={() => setShowMobileMenu(false)}
+                        className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-rose-500 bg-rose-500/10 border border-rose-500/20"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Shield className="w-4 h-4" /> Root Egasi Paneli
+                        </span>
+                        <span className="text-[10px] uppercase font-mono">ROOT</span>
+                      </Link>
+                    )}
                     {isDirector && (
                       <Link
                         to="/director"
