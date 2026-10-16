@@ -141,12 +141,71 @@ export const teacherService = {
   },
 
   async updateTeacher(teacherId: string, data: Partial<UserProfile>): Promise<void> {
-    const ref = doc(db, "users", teacherId);
-    await updateDoc(ref, {
-      ...data,
-      updatedAt: serverTimestamp(),
-    });
+    try {
+      const ref = doc(db, "users", teacherId);
+      await setDoc(ref, {
+        ...data,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    } catch (err: any) {
+      console.warn("updateTeacher Firestore warning:", err?.message);
+    }
     teachersMemCache = null;
+
+    // If salary rates were updated, also synchronize current month's teacher salary cache and dispatch finance_updated
+    if (data.salaryValue !== undefined || data.salaryType !== undefined || data.salaryFixedAmount !== undefined) {
+      try {
+        const currentMonth = new Date().toISOString().slice(0, 7);
+        const raw = typeof localStorage !== "undefined" ? localStorage.getItem("fm_salaries_cache") : null;
+        const cached: any[] = raw ? JSON.parse(raw) : [];
+        const existing = cached.find((s) => s.teacherId === teacherId && s.month === currentMonth);
+        if (existing) {
+          const newType = (data.salaryType as any) || existing.salaryType || "percentage";
+          const newPercentage = typeof data.salaryValue === "number" ? data.salaryValue : (existing.percentage ?? 50);
+          const newFixed = typeof data.salaryFixedAmount === "number" ? data.salaryFixedAmount : (existing.fixedSalary ?? 0);
+
+          let base = 0;
+          if (newType === "percentage") {
+            base = Math.round((existing.collectedPayment || 0) * (newPercentage / 100));
+          } else if (newType === "fixed") {
+            base = Number(newFixed);
+          } else {
+            base = Math.round(Number(newFixed) + (existing.collectedPayment || 0) * (newPercentage / 100));
+          }
+
+          const calculatedSalary = Math.max(0, base + (existing.bonus || 0) - (existing.deduction || 0));
+          const remainingSalary = Math.max(0, calculatedSalary - (existing.paidSalary || 0));
+
+          const updatedDoc = {
+            ...existing,
+            salaryType: newType,
+            percentage: newPercentage,
+            fixedSalary: newFixed,
+            calculatedSalary,
+            remainingSalary,
+            updatedAt: new Date().toISOString(),
+          };
+
+          const updatedList = cached.map((s) => (s.salaryId === existing.salaryId ? updatedDoc : s));
+          if (typeof localStorage !== "undefined") {
+            localStorage.setItem("fm_salaries_cache", JSON.stringify(updatedList));
+          }
+
+          setDoc(doc(db, "teacher_salaries", existing.salaryId), {
+            ...updatedDoc,
+            updatedAt: serverTimestamp(),
+          }, { merge: true }).catch(() => {});
+        }
+      } catch (e) {
+        console.warn("Sync salary after updateTeacher error:", e);
+      }
+
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("finance_updated", { detail: { type: "teacher_rate_updated", teacherId } })
+        );
+      }
+    }
   },
 
   async setTeacherStatus(teacherId: string, status: "active" | "blocked" | "suspended"): Promise<void> {

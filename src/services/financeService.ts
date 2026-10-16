@@ -638,6 +638,7 @@ export const financeService = {
 
     const updated = [salaryDoc, ...cached.filter((s) => s.salaryId !== salaryId)];
     saveLocal(SALARIES_CACHE_KEY, updated);
+    salariesMemCache = { data: updated, time: Date.now() };
     syncSystemFinanceToCloud({ teacher_salaries: updated });
 
     try {
@@ -645,6 +646,19 @@ export const financeService = {
       await setDoc(salRef, { ...salaryDoc, updatedAt: serverTimestamp() }, { merge: true });
     } catch (err: any) {
       console.warn("Firestore salaries write warning:", err?.message);
+    }
+
+    // Keep teacher master profile rates synchronized so all future calculations & pages use this rate
+    if (data.teacherId) {
+      try {
+        await teacherService.updateTeacher(data.teacherId, {
+          salaryType: data.salaryType,
+          salaryValue: typeof data.percentage === "number" ? data.percentage : undefined,
+          salaryFixedAmount: typeof data.fixedSalary === "number" ? data.fixedSalary : undefined,
+        });
+      } catch (err: any) {
+        console.warn("Update teacher profile rates error:", err?.message);
+      }
     }
 
     if (typeof window !== "undefined") {
@@ -795,13 +809,17 @@ export const financeService = {
 
       const existing = existingMap.get(teacher.uid);
       const sType: SalaryType =
-        existing?.salaryType || (teacher.salaryType as SalaryType) || "percentage";
-      const sPercentage = existing?.percentage ?? (teacher.salaryValue ?? 50);
+        (teacher.salaryType as SalaryType) || existing?.salaryType || "percentage";
+      const sPercentage =
+        typeof teacher.salaryValue === "number" && !isNaN(teacher.salaryValue)
+          ? teacher.salaryValue
+          : (existing?.percentage ?? 50);
       const sFixed =
-        existing?.fixedSalary ??
-        (teacher.salaryFixedAmount ??
-          (teacher.salaryType === "fixed" ? teacher.salaryValue : 0) ??
-          0);
+        typeof teacher.salaryFixedAmount === "number" && !isNaN(teacher.salaryFixedAmount)
+          ? teacher.salaryFixedAmount
+          : (teacher.salaryType === "fixed" && typeof teacher.salaryValue === "number"
+              ? teacher.salaryValue
+              : (existing?.fixedSalary ?? 0));
       const bonus = existing?.bonus || 0;
       const deduction = existing?.deduction || 0;
 
@@ -865,6 +883,70 @@ export const financeService = {
     ).catch(() => {});
 
     return calculatedList;
+  },
+
+  async updateTeacherSalaryPercentage(
+    teacherId: string,
+    newPercentage: number,
+    month?: string,
+    salaryType: SalaryType = "percentage",
+    fixedSalary?: number
+  ): Promise<TeacherSalary> {
+    const targetMonth = month || new Date().toISOString().slice(0, 7);
+    const numPercent = Math.max(0, Math.min(100, Number(newPercentage) || 0));
+
+    // 1. Update teacher master profile rates
+    await teacherService.updateTeacher(teacherId, {
+      salaryType,
+      salaryValue: numPercent,
+      salaryFixedAmount: Number(fixedSalary || 0),
+    });
+
+    // 2. Fetch existing salaries for this month to preserve collectedPayment, bonus, deduction, etc.
+    salariesMemCache = null;
+    const existingList = await this.getTeacherSalaries({ month: targetMonth });
+    const existing = existingList.find((s) => s.teacherId === teacherId);
+
+    // Sum collected payment for teacher if not already populated
+    let collected = existing?.collectedPayment || 0;
+    if (!collected) {
+      const [payments, groups] = await Promise.all([
+        this.getPayments({ month: targetMonth }).catch(() => []),
+        groupService.getGroups().catch(() => []),
+      ]);
+      const teacherGroups = groups.filter(
+        (g) =>
+          g.teacherId === teacherId ||
+          (Array.isArray(g.teacherId) && (g.teacherId as any).includes(teacherId))
+      );
+      const teacherGroupIds = new Set(teacherGroups.map((g) => g.groupId));
+      collected = payments
+        .filter(
+          (p) =>
+            (teacherGroupIds.has(p.groupId) || p.teacherId === teacherId) &&
+            p.status === "PAID" &&
+            Number(p.amount) > 0
+        )
+        .reduce((sum, p) => sum + Number(p.amount), 0);
+    }
+
+    const t = await teacherService.getTeacherById(teacherId);
+
+    // 3. Save updated salary
+    const saved = await this.calculateAndSaveTeacherSalary({
+      teacherId,
+      teacherName: t?.displayName || existing?.teacherName || "O'qituvchi",
+      month: targetMonth,
+      salaryType: salaryType || existing?.salaryType || "percentage",
+      percentage: numPercent,
+      fixedSalary: Number(fixedSalary ?? existing?.fixedSalary ?? 0),
+      bonus: existing?.bonus || 0,
+      deduction: existing?.deduction || 0,
+      collectedPayment: collected,
+      note: existing?.note || "",
+    });
+
+    return saved;
   },
 
   async approveSalary(salaryId: string, directorUid: string): Promise<void> {

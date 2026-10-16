@@ -48,7 +48,13 @@ export const TeacherSalaryPage: React.FC = () => {
       setGroups(teacherGroups);
 
       // Find salary for selected month
-      const monthSal = salariesList.find((s) => s.month === selectedMonth) || null;
+      let monthSal = salariesList.find((s) => s.month === selectedMonth) || null;
+      if (!monthSal) {
+        try {
+          const recalculated = await financeService.autoRecalculateMonthSalaries(selectedMonth);
+          monthSal = recalculated.find((s) => s.teacherId === user.uid) || null;
+        } catch {}
+      }
       setCurrentSalary(monthSal);
     } catch (err: any) {
       console.warn("loadSalaryData error:", err);

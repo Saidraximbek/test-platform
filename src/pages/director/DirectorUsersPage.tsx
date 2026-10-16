@@ -16,9 +16,11 @@ import {
   Eye,
   EyeOff,
   Key,
+  DollarSign,
 } from "lucide-react";
 import { adminService } from "../../services/adminService";
 import { coinService } from "../../services/coinService";
+import { teacherService } from "../../services/teacherService";
 import { useToast } from "../../context/ToastContext";
 import { UserProfile, UserStatus } from "../../types";
 import { Card } from "../../components/common/Card";
@@ -59,6 +61,12 @@ export const DirectorUsersPage: React.FC = () => {
   const [coinAmount, setCoinAmount] = useState<number>(50);
   const [coinReason, setCoinReason] = useState("");
   const [isAdjustingCoin, setIsAdjustingCoin] = useState(false);
+
+  // Salary / Rate Modal (Exclusive for Teachers)
+  const [salaryModalUser, setSalaryModalUser] = useState<UserProfile | null>(null);
+  const [salaryType, setSalaryType] = useState<"percentage" | "fixed" | "mixed">("percentage");
+  const [salaryValue, setSalaryValue] = useState<number>(50);
+  const [isUpdatingSalary, setIsUpdatingSalary] = useState(false);
 
   const fetchUsers = async (isRefresh = false) => {
     try {
@@ -138,6 +146,31 @@ export const DirectorUsersPage: React.FC = () => {
       toastError(err.message || "Tangalarni o'zgartirishda xatolik");
     } finally {
       setIsAdjustingCoin(false);
+    }
+  };
+
+  // Teacher Salary / Rate handler
+  const openTeacherSalaryModal = (u: UserProfile) => {
+    setSalaryModalUser(u);
+    setSalaryType((u.salaryType as any) || "percentage");
+    setSalaryValue(typeof u.salaryValue === "number" ? u.salaryValue : 50);
+  };
+
+  const handleUpdateTeacherSalary = async () => {
+    if (!salaryModalUser) return;
+    setIsUpdatingSalary(true);
+    try {
+      await teacherService.updateTeacher(salaryModalUser.uid, {
+        salaryType,
+        salaryValue: Number(salaryValue),
+      });
+      success(`"${salaryModalUser.displayName}" oylik foiz stavkasi muvaffaqiyatli saqlandi!`);
+      setSalaryModalUser(null);
+      fetchUsers(true);
+    } catch (err: any) {
+      toastError(err.message || "Oylik foizini o'zgartirishda xatolik yuz berdi");
+    } finally {
+      setIsUpdatingSalary(false);
     }
   };
 
@@ -407,32 +440,53 @@ export const DirectorUsersPage: React.FC = () => {
                       </td>
 
                       <td className="p-4">
-                        <span
-                          className={`text-xs font-black px-2.5 py-1 rounded-xl inline-flex items-center gap-1.5 border shadow-sm ${
-                            u.role === "director"
-                              ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`text-xs font-black px-2.5 py-1 rounded-xl inline-flex items-center gap-1.5 border shadow-sm ${
+                              u.role === "director"
+                                ? "bg-amber-500/15 text-amber-300 border-amber-500/30"
+                                : u.role === "admin"
+                                ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
+                                : u.role === "teacher"
+                                ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
+                                : u.role === "student"
+                                ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                                : "bg-slate-800 text-slate-400 border-slate-700"
+                            }`}
+                          >
+                            {u.role === "director"
+                              ? "👑 Direktor"
                               : u.role === "admin"
-                              ? "bg-purple-500/15 text-purple-300 border-purple-500/30"
+                              ? "🛡️ Admin"
                               : u.role === "teacher"
-                              ? "bg-sky-500/15 text-sky-300 border-sky-500/30"
+                              ? "👨‍🏫 O'qituvchi"
                               : u.role === "student"
-                              ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
-                              : "bg-slate-800 text-slate-400 border-slate-700"
-                          }`}
-                        >
-                          {u.role === "director"
-                            ? "👑 Direktor"
-                            : u.role === "admin"
-                            ? "🛡️ Admin"
-                            : u.role === "teacher"
-                            ? "👨‍🏫 O'qituvchi"
-                            : u.role === "student"
-                            ? "🎓 O'quvchi"
-                            : "👤 Foydalanuvchi"}
-                        </span>
+                              ? "🎓 O'quvchi"
+                              : "👤 Foydalanuvchi"}
+                          </span>
+                          {u.role === "teacher" && (
+                            <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                              {u.salaryType === "fixed" ? "Fiks" : `${u.salaryValue ?? 50}% foiz`}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                        {/* Adjust Salary (Teachers only) */}
+                        {u.role === "teacher" && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => openTeacherSalaryModal(u)}
+                            className="text-amber-400 hover:bg-amber-400/10 border border-amber-500/20 font-bold"
+                            title="O'qituvchi oylik foiz stavkasini o'zgartirish"
+                          >
+                            <DollarSign className="w-3.5 h-3.5 mr-1 text-amber-400" />
+                            <span>{u.salaryValue ?? 50}%</span>
+                          </Button>
+                        )}
+
                         {/* Change Role Button (Exclusive) */}
                         <Button
                           size="sm"
@@ -641,6 +695,77 @@ export const DirectorUsersPage: React.FC = () => {
               </Button>
               <Button variant="amber" isLoading={isAdjustingCoin} onClick={handleAdjustCoins}>
                 Tangani Saqlash
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Teacher Salary Rate Modal */}
+      <Modal
+        isOpen={!!salaryModalUser}
+        onClose={() => setSalaryModalUser(null)}
+        title="O'qituvchi Oylik Foizini O'zgartirish"
+      >
+        {salaryModalUser && (
+          <div className="space-y-4 text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-800/80 border border-amber-500/20">
+              <p className="text-xs text-slate-300">
+                O'qituvchi: <strong className="text-white text-sm">{salaryModalUser.displayName}</strong>
+              </p>
+              <p className="text-[11px] text-slate-400 mt-1">
+                Mutaxassislik: <span className="text-amber-400 font-semibold">{salaryModalUser.specialty || "Umumiy"}</span>
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                Maosh hisoblash tizimi:
+              </label>
+              <select
+                value={salaryType}
+                onChange={(e) => setSalaryType(e.target.value as any)}
+                className="w-full rounded-xl border border-slate-700 bg-slate-800 text-xs p-3 text-white focus:outline-none focus:border-amber-500"
+              >
+                <option value="percentage">Guruh o'quvchilari to'lovidan foiz (%)</option>
+                <option value="fixed">Qat'iy oylik (Fiks summa UZS)</option>
+                <option value="mixed">Aralash (Fiks + Foiz)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-200 mb-1.5">
+                {salaryType === "percentage" ? "Ulush foiz stavkasi (%)" : "Oylik summa (UZS)"}
+              </label>
+              <Input
+                type="number"
+                min="0"
+                max={salaryType === "percentage" ? 100 : undefined}
+                value={salaryValue}
+                onChange={(e) => setSalaryValue(Number(e.target.value))}
+                helperText={
+                  salaryType === "percentage"
+                    ? "Masalan: 40, 50, 60. Bu foiz stavkasi bo'yicha har oy o'qituvchining maoshi hisoblanadi."
+                    : "O'qituvchining oylik maosh summasi"
+                }
+              />
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-300/90 leading-relaxed">
+              💡 <strong>Direktor nazorati:</strong> Ushbu foiz stavkasi o'qituvchining joriy va kelgusi oyliklariga avtomatik tatbiq etiladi.
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+              <Button variant="outline" onClick={() => setSalaryModalUser(null)}>
+                Bekor qilish
+              </Button>
+              <Button
+                variant="primary"
+                isLoading={isUpdatingSalary}
+                onClick={handleUpdateTeacherSalary}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black"
+              >
+                Foizni Saqlash
               </Button>
             </div>
           </div>

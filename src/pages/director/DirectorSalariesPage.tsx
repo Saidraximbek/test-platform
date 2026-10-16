@@ -46,6 +46,7 @@ export const DirectorSalariesPage: React.FC = () => {
 
   // Modal: Calculate Salary
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditingExistingSalary, setIsEditingExistingSalary] = useState(false);
   const [teacherId, setTeacherId] = useState("");
   const [salaryType, setSalaryType] = useState<SalaryType>("percentage");
   const [percentage, setPercentage] = useState(40);
@@ -56,6 +57,13 @@ export const DirectorSalariesPage: React.FC = () => {
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [autoCollectedInfo, setAutoCollectedInfo] = useState<string | null>(null);
+
+  // Modal: Quick Adjust Teacher Salary Rate & Percentage
+  const [rateModalSalary, setRateModalSalary] = useState<TeacherSalary | null>(null);
+  const [rateSalaryType, setRateSalaryType] = useState<SalaryType>("percentage");
+  const [ratePercentage, setRatePercentage] = useState<number>(50);
+  const [rateFixedSalary, setRateFixedSalary] = useState<number>(3000000);
+  const [savingRate, setSavingRate] = useState(false);
 
   // Modal: Pay Salary
   const [payModalSalary, setPayModalSalary] = useState<TeacherSalary | null>(null);
@@ -118,6 +126,7 @@ export const DirectorSalariesPage: React.FC = () => {
   };
 
   const openEditModal = (sal: TeacherSalary) => {
+    setIsEditingExistingSalary(true);
     setTeacherId(sal.teacherId);
     setSalaryType(sal.salaryType);
     setPercentage(sal.percentage ?? 50);
@@ -130,6 +139,35 @@ export const DirectorSalariesPage: React.FC = () => {
       `${sal.teacherName} uchun ${selectedMonth} oyida o'quvchilardan yig'ilgan to'lov: ${formatNumber(sal.collectedPayment)} UZS`
     );
     setIsModalOpen(true);
+  };
+
+  const openRateModal = (sal: TeacherSalary) => {
+    setRateModalSalary(sal);
+    setRateSalaryType(sal.salaryType || "percentage");
+    setRatePercentage(sal.percentage ?? 50);
+    setRateFixedSalary(sal.fixedSalary ?? 3000000);
+  };
+
+  const handleSaveRate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rateModalSalary) return;
+    try {
+      setSavingRate(true);
+      await financeService.updateTeacherSalaryPercentage(
+        rateModalSalary.teacherId,
+        Number(ratePercentage),
+        selectedMonth,
+        rateSalaryType,
+        Number(rateFixedSalary)
+      );
+      success(`${rateModalSalary.teacherName} oylik foiz stavkasi ${rateSalaryType === "percentage" ? `${ratePercentage}%` : "muvaffaqiyatli"} saqlandi va maosh qayta hisoblandi!`);
+      setRateModalSalary(null);
+      await loadData();
+    } catch (err: any) {
+      toastError(err.message || "Foiz stavkasini yangilashda xatolik");
+    } finally {
+      setSavingRate(false);
+    }
   };
 
   useEffect(() => {
@@ -191,6 +229,7 @@ export const DirectorSalariesPage: React.FC = () => {
   };
 
   const openCalculateModal = () => {
+    setIsEditingExistingSalary(false);
     const firstTeacher = teachers[0]?.uid || "";
     setBonus(0);
     setDeduction(0);
@@ -542,29 +581,43 @@ export const DirectorSalariesPage: React.FC = () => {
                       </td>
 
                       <td className="p-3.5">
-                        {sal.salaryType === "percentage" ? (
-                          <div className="space-y-0.5">
-                            <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 inline-block">
-                              {sal.percentage}% ulush
-                            </span>
-                            <p className="text-[10px] text-slate-400 font-mono">
-                              {formatNumber(sal.collectedPayment)} × {sal.percentage}%
-                            </p>
-                          </div>
-                        ) : sal.salaryType === "fixed" ? (
-                          <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-400 border border-sky-500/30 inline-block">
-                            Fiks: {formatNumber(sal.fixedSalary || 0)} UZS
-                          </span>
-                        ) : (
-                          <div className="space-y-0.5">
-                            <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/30 inline-block">
-                              Fiks + {sal.percentage}%
-                            </span>
-                            <p className="text-[10px] text-slate-400 font-mono">
-                              {formatNumber(sal.fixedSalary || 0)} + ({sal.percentage}%)
-                            </p>
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => openRateModal(sal)}
+                            className="text-left group/rate flex items-center gap-1.5"
+                            title="Foiz stavkasini o'zgartirish uchun bosing"
+                          >
+                            {sal.salaryType === "percentage" ? (
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 inline-flex items-center gap-1 group-hover/rate:bg-amber-500/25 group-hover/rate:border-amber-500/50 transition-colors">
+                                  <span>{sal.percentage}% ulush</span>
+                                  <Edit3 className="w-3 h-3 text-amber-300 opacity-60 group-hover/rate:opacity-100" />
+                                </span>
+                                <p className="text-[10px] text-slate-400 font-mono">
+                                  {formatNumber(sal.collectedPayment)} × {sal.percentage}%
+                                </p>
+                              </div>
+                            ) : sal.salaryType === "fixed" ? (
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-sky-500/15 text-sky-400 border border-sky-500/30 inline-flex items-center gap-1 group-hover/rate:bg-sky-500/25 transition-colors">
+                                  <span>Fiks: {formatNumber(sal.fixedSalary || 0)} UZS</span>
+                                  <Edit3 className="w-3 h-3 text-sky-300 opacity-60 group-hover/rate:opacity-100" />
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-black px-2 py-0.5 rounded-md bg-purple-500/15 text-purple-400 border border-purple-500/30 inline-flex items-center gap-1 group-hover/rate:bg-purple-500/25 transition-colors">
+                                  <span>Fiks + {sal.percentage}%</span>
+                                  <Edit3 className="w-3 h-3 text-purple-300 opacity-60 group-hover/rate:opacity-100" />
+                                </span>
+                                <p className="text-[10px] text-slate-400 font-mono">
+                                  {formatNumber(sal.fixedSalary || 0)} + ({sal.percentage}%)
+                                </p>
+                              </div>
+                            )}
+                          </button>
+                        </div>
                       </td>
 
                       <td className="p-3.5">
@@ -682,32 +735,46 @@ export const DirectorSalariesPage: React.FC = () => {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title="O'qituvchi Maoshini Hisoblash"
+        title={isEditingExistingSalary ? "O'qituvchi Maoshi & Foizini Tahrirlash" : "O'qituvchi Maoshini Hisoblash"}
       >
         <form onSubmit={handleCalculateSalary} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              O'qituvchini tanlang
-            </label>
-            <select
-              value={teacherId}
-              onChange={(e) => applyTeacherDefaults(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
-              required
-            >
-              <option value="">O'qituvchini tanlang...</option>
-              {teachers.map((t) => (
-                <option key={t.uid} value={t.uid}>
-                  {t.displayName} ({t.specialty || "Fan o'qituvchisi"})
-                </option>
-              ))}
-            </select>
-            {autoCollectedInfo && (
-              <p className="text-[11px] text-amber-400/90 mt-1.5 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
-                💡 {autoCollectedInfo}
-              </p>
-            )}
-          </div>
+          {isEditingExistingSalary ? (
+            <div className="p-3.5 bg-slate-950/60 border border-slate-800 rounded-xl space-y-1">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">O'qituvchi</span>
+              <span className="text-white font-black text-sm">
+                {teachers.find((t) => t.uid === teacherId)?.displayName || "O'qituvchi"}
+              </span>
+              {autoCollectedInfo && (
+                <p className="text-[11px] text-amber-400/90 pt-1">
+                  💡 {autoCollectedInfo}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                O'qituvchini tanlang
+              </label>
+              <select
+                value={teacherId}
+                onChange={(e) => applyTeacherDefaults(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+                required
+              >
+                <option value="">O'qituvchini tanlang...</option>
+                {teachers.map((t) => (
+                  <option key={t.uid} value={t.uid}>
+                    {t.displayName} ({t.specialty || "Fan o'qituvchisi"})
+                  </option>
+                ))}
+              </select>
+              {autoCollectedInfo && (
+                <p className="text-[11px] text-amber-400/90 mt-1.5 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                  💡 {autoCollectedInfo}
+                </p>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-300 mb-1">
@@ -737,8 +804,11 @@ export const DirectorSalariesPage: React.FC = () => {
             <Input
               label="O'qituvchi ulush foizi (%)"
               type="number"
+              min="0"
+              max="100"
               value={percentage}
               onChange={(e) => setPercentage(Number(e.target.value))}
+              helperText="Har oylik to'lovlardan ustoz ulushi foizi"
               required
             />
           )}
@@ -809,6 +879,106 @@ export const DirectorSalariesPage: React.FC = () => {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Modal: Quick Adjust Teacher Salary Rate & Percentage */}
+      <Modal
+        isOpen={!!rateModalSalary}
+        onClose={() => setRateModalSalary(null)}
+        title="O'qituvchi Oylik Foiz Stavkasini O'zgartirish"
+      >
+        {rateModalSalary && (
+          <form onSubmit={handleSaveRate} className="space-y-4">
+            <div className="p-3.5 rounded-xl bg-slate-950/60 border border-amber-500/20 text-xs space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">O'qituvchi:</span>
+                <strong className="text-white text-sm font-black">{rateModalSalary.teacherName}</strong>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Hisob oyi:</span>
+                <span className="text-amber-300 font-mono font-bold">{selectedMonth}</span>
+              </div>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-800">
+                <span className="text-slate-400">Guruhlardan to'plangan tushum:</span>
+                <span className="text-white font-bold">{formatNumber(rateModalSalary.collectedPayment)} UZS</span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Maosh To'lash Tizimi
+              </label>
+              <select
+                value={rateSalaryType}
+                onChange={(e) => setRateSalaryType(e.target.value as SalaryType)}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
+              >
+                <option value="percentage">Guruhdan foiz (%) stavkasi</option>
+                <option value="fixed">Fiks qat'iy oylik (UZS)</option>
+                <option value="mixed">Aralash formula (Fiks + Foiz)</option>
+              </select>
+            </div>
+
+            {rateSalaryType !== "fixed" && (
+              <div>
+                <Input
+                  label="O'qituvchi oylik ulush foizi (%)"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={ratePercentage}
+                  onChange={(e) => setRatePercentage(Number(e.target.value))}
+                  helperText="O'quvchilar to'lagan oylik to'lovlaridan o'qituvchiga hisoblanadigan foiz (masalan: 40%, 50%, 60%)"
+                  required
+                />
+              </div>
+            )}
+
+            {rateSalaryType !== "percentage" && (
+              <div>
+                <Input
+                  label="Fiks bazaviy summa (UZS)"
+                  type="number"
+                  value={rateFixedSalary}
+                  onChange={(e) => setRateFixedSalary(Number(e.target.value))}
+                  required
+                />
+              </div>
+            )}
+
+            {/* Real-time preview */}
+            <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/30 text-xs space-y-1">
+              <span className="text-[10px] font-bold uppercase text-amber-400 block tracking-wider">
+                Yangi hisoblash taxmini:
+              </span>
+              <div className="flex items-center justify-between text-slate-300">
+                <span>Hisoblanadigan oylik:</span>
+                <strong className="text-amber-400 font-bold text-sm">
+                  {formatNumber(
+                    rateSalaryType === "percentage"
+                      ? Math.round(rateModalSalary.collectedPayment * (ratePercentage / 100))
+                      : rateSalaryType === "fixed"
+                      ? Number(rateFixedSalary || 0)
+                      : Math.round(Number(rateFixedSalary || 0) + rateModalSalary.collectedPayment * (ratePercentage / 100))
+                  )}{" "}
+                  UZS
+                </strong>
+              </div>
+              <p className="text-[10px] text-slate-400 pt-1">
+                💡 Ushbu foiz stavkasi o'qituvchining doimiy profilida va joriy oydagi maoshida darhol yangilanadi.
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <Button type="button" variant="outline" onClick={() => setRateModalSalary(null)}>
+                Bekor qilish
+              </Button>
+              <Button type="submit" isLoading={savingRate} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black">
+                Foizni Saqlash & Qayta Hisoblash
+              </Button>
+            </div>
+          </form>
+        )}
       </Modal>
 
       {/* Modal: Pay Salary */}
